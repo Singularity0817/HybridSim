@@ -42,6 +42,7 @@ namespace Host_Components
 		HostInterface_Types SSD_device_type;
 		SATA_HBA * sata_hba;
 		std::vector<Host_Components::IO_Flow_Base*>* IO_flows;
+		unsigned int num_of_requests_write_to_ssd;
 		
 		void Write_to_memory(const uint64_t address, const void* payload);
 		void Read_from_memory(const uint64_t address, const unsigned int size);

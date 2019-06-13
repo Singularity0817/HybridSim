@@ -115,6 +115,7 @@ const std::vector<Host_Components::IO_Flow_Base*> Host_System::Get_io_flows()
 
 void Host_System::Start_simulation()
 {
+	std::cout << "Host_System is starting simulation...." << std::endl;
 	switch (ssd_device->Host_interface->GetType())
 	{
 	case HostInterface_Types::NVME:
@@ -134,11 +135,13 @@ void Host_System::Start_simulation()
 
 	if (preconditioning_required)
 	{
+		std::cout << "Preconditioning is required..." << std::endl;
 		std::vector<Utils::Workload_Statistics*> workload_stats = get_workloads_statistics();
 		ssd_device->Perform_preconditioning(workload_stats);
 		for (auto &stat : workload_stats)
 			delete stat;
 	}
+	std::cout << "Exiting Host_System::Start_simulation()" << std::endl;
 }
 
 void Host_System::Validate_simulation_config() 
@@ -159,6 +162,7 @@ void Host_System::Execute_simulator_event(MQSimEngine::Sim_Event* event) {}
 
 void Host_System::Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter)
 {
+	std::cout << "Host_System::Report_results_in_XML" << std::endl;
 	std::string tmp;
 	tmp = ID();
 	xmlwriter.Write_open_tag(tmp);
@@ -171,6 +175,7 @@ void Host_System::Report_results_in_XML(std::string name_prefix, Utils::XmlWrite
 
 std::vector<Utils::Workload_Statistics*> Host_System::get_workloads_statistics()
 {
+	std::cout << "Getting workload statistics...." << std::endl;
 	std::vector<Utils::Workload_Statistics*> stats;
 
 	for (auto &workload : IO_flows)

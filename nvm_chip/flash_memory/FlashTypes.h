@@ -26,6 +26,7 @@ typedef uint64_t PPA_type;
 typedef uint64_t command_code_type;
 
 enum class Flash_Technology_Type { SLC = 1, MLC = 2, TLC = 3 };
+enum class Flash_Program_Type {PAGEBYPAGE = 1, ONESHOT = 2}; //*ZWH*
 
 #define FREE_PAGE 0x0000000000000000ULL
 #define NO_LPA 0xffffffffffffffffULL

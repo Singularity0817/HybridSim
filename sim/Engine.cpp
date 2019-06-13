@@ -1,6 +1,8 @@
 #include <stdexcept>
 #include "Engine.h"
 #include "../utils/Logical_Address_Partitioning_Unit.h"
+#include <unistd.h>
+#include <iostream>
 
 namespace MQSimEngine
 {
@@ -79,7 +81,13 @@ namespace MQSimEngine
 		while (true)
 		{
 			if (_EventList->Count == 0 || stop)
+			{
+				if (_EventList->Count == 0)
+					std::cout << "There is no events in the list, so the simulator will terminate soon" << std::endl;
+				//sleep(2);
+				//continue;
 				break;
+			}
 
 			EventTreeNode* minNode = _EventList->Get_min_node();
 			ev = minNode->FirstSimEvent;

@@ -251,18 +251,8 @@ std::vector<std::vector<IO_Flow_Parameter_Set*>*>* read_workload_definitions(con
 
 void collect_results(SSD_Device& ssd, Host_System& host, const char* output_file_path)
 {
-	Utils::XmlWriter xmlwriter;
-	xmlwriter.Open(output_file_path);
-
-	std::string tmp("MQSim_Results");
-	xmlwriter.Write_open_tag(tmp);
-	
-	host.Report_results_in_XML("", xmlwriter);
-	ssd.Report_results_in_XML("", xmlwriter);
-
-	xmlwriter.Write_close_tag();
-
 	std::vector<Host_Components::IO_Flow_Base*> IO_flows = host.Get_io_flows();
+	cout << "Begin to print informations" << std::endl;
 	for (unsigned int stream_id = 0; stream_id < IO_flows.size(); stream_id++)
 	{
 		cout << "Flow " << IO_flows[stream_id]->ID() << " - total requests generated: " << IO_flows[stream_id]->Get_generated_request_count()
@@ -270,6 +260,17 @@ void collect_results(SSD_Device& ssd, Host_System& host, const char* output_file
 		cout << "                   - device response time: " << IO_flows[stream_id]->Get_device_response_time() << " (us)"
 			<< " end-to-end request delay:" << IO_flows[stream_id]->Get_end_to_end_request_delay() << " (us)" << endl;
 	}
+	
+	Utils::XmlWriter xmlwriter;
+	xmlwriter.Open(output_file_path);
+	std::string tmp("MQSim_Results");
+	xmlwriter.Write_open_tag(tmp);
+	host.Report_results_in_XML("", xmlwriter);
+	ssd.Report_results_in_XML("", xmlwriter);
+
+	xmlwriter.Write_close_tag();
+
+	
 	//cin.get();
 }
 
@@ -319,6 +320,7 @@ int main(int argc, char* argv[])
 		host.Attach_ssd_device(&ssd);
 
 		Simulator->Start_simulation();
+		
 
 		time_t end_time = time(0);
 		dt = ctime(&end_time);
@@ -330,7 +332,7 @@ int main(int argc, char* argv[])
 		PRINT_MESSAGE("Writing results to output file .......");
 		collect_results(ssd, host, (workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of(".")) + "_scenario_" + std::to_string(cntr) + ".xml").c_str());
 	}
-    cout << "Simulation complete; Press any key to exit." << endl;
-	cin.get();
+
+	//cin.get();
 	return 0;
 }

@@ -30,6 +30,7 @@ namespace MQSimEngine {
 		void Stop_simulation();
 		bool Has_started();
 		bool Is_integrated_execution_mode();
+		sim_time_type Last_request_triggerred_time;
 	private:
 		sim_time_type _sim_time;
 		EventTree* _EventList;

@@ -38,6 +38,75 @@ namespace NVM
 				Dies[dieID] = new Die(PlaneNoPerDie, Block_no_per_plane, Page_no_per_block);
 		}
 
+		Flash_Chip::Flash_Chip(const sim_object_id_type& id, flash_channel_ID_type channelID, flash_chip_ID_type localChipID,
+			Flash_Technology_Type flash_technology, Flash_Program_Type program_type,
+			unsigned int dieNo, unsigned int PlaneNoPerDie, unsigned int Block_no_per_plane, unsigned int Page_no_per_block,
+			sim_time_type* readLatency, sim_time_type* programLatency, sim_time_type eraseLatency,
+			sim_time_type suspendProgramLatency, sim_time_type suspendEraseLatency,
+			sim_time_type commProtocolDelayRead, sim_time_type commProtocolDelayWrite, sim_time_type commProtocolDelayErase)
+			: NVM_Chip(id), ChannelID(channelID), ChipID(localChipID), flash_technology(flash_technology), flash_program_method(program_type),
+			status(Internal_Status::IDLE), die_no(dieNo), plane_no_in_die(PlaneNoPerDie), block_no_in_plane(Block_no_per_plane), page_no_per_block(Page_no_per_block),
+			_RBSignalDelayRead(commProtocolDelayRead), _RBSignalDelayWrite(commProtocolDelayWrite), _RBSignalDelayErase(commProtocolDelayErase),
+			lastTransferStart(INVALID_TIME), executionStartTime(INVALID_TIME), expectedFinishTime(INVALID_TIME),
+			STAT_readCount(0), STAT_progamCount(0), STAT_eraseCount(0),
+			STAT_totalSuspensionCount(0), STAT_totalResumeCount(0),
+			STAT_totalExecTime(0), STAT_totalXferTime(0), STAT_totalOverlappedXferExecTime(0)
+		{
+			int bits_per_cell = static_cast<int>(flash_technology);
+			_readLatency = new sim_time_type[bits_per_cell];
+			_programLatency = new sim_time_type[bits_per_cell];
+			for (int i = 0; i < bits_per_cell; i++)
+			{
+				_readLatency[i] = readLatency[i];
+				_programLatency[i] = programLatency[i];
+			}
+			_eraseLatency = eraseLatency;
+			_suspendProgramLatency = suspendProgramLatency;
+			_suspendEraseLatency = suspendEraseLatency;
+			idleDieNo = dieNo;
+			Dies = new Die*[dieNo];
+			for (unsigned int dieID = 0; dieID < dieNo; dieID++)
+				Dies[dieID] = new Die(PlaneNoPerDie, Block_no_per_plane, Page_no_per_block);
+		}
+
+		Flash_Chip::Flash_Chip(const sim_object_id_type& id, flash_channel_ID_type channelID, flash_chip_ID_type localChipID,
+			Flash_Technology_Type flash_technology, Flash_Program_Type program_type, unsigned int slc_percentage,
+			unsigned int dieNo, unsigned int PlaneNoPerDie, unsigned int Block_no_per_plane, unsigned int Page_no_per_block,
+			sim_time_type* readLatency, sim_time_type* programLatency, sim_time_type eraseLatency,
+			sim_time_type suspendProgramLatency, sim_time_type suspendEraseLatency,
+			sim_time_type commProtocolDelayRead, sim_time_type commProtocolDelayWrite, sim_time_type commProtocolDelayErase)
+			: NVM_Chip(id), ChannelID(channelID), ChipID(localChipID), flash_technology(flash_technology), flash_program_method(program_type), percentage_of_slc_blocks_per_plane(slc_percentage),
+			status(Internal_Status::IDLE), die_no(dieNo), plane_no_in_die(PlaneNoPerDie), block_no_in_plane(Block_no_per_plane), page_no_per_block(Page_no_per_block),
+			_RBSignalDelayRead(commProtocolDelayRead), _RBSignalDelayWrite(commProtocolDelayWrite), _RBSignalDelayErase(commProtocolDelayErase),
+			lastTransferStart(INVALID_TIME), executionStartTime(INVALID_TIME), expectedFinishTime(INVALID_TIME),
+			STAT_readCount(0), STAT_progamCount(0), STAT_eraseCount(0),
+			STAT_totalSuspensionCount(0), STAT_totalResumeCount(0),
+			STAT_totalExecTime(0), STAT_totalXferTime(0), STAT_totalOverlappedXferExecTime(0)
+		{
+			int bits_per_cell = static_cast<int>(flash_technology);
+			_readLatency = new sim_time_type[bits_per_cell];
+			_programLatency = new sim_time_type[bits_per_cell];
+			for (int i = 0; i < bits_per_cell; i++)
+			{
+				_readLatency[i] = readLatency[i];
+				_programLatency[i] = programLatency[i];
+			}
+			_eraseLatency = eraseLatency;
+			_suspendProgramLatency = suspendProgramLatency;
+			_suspendEraseLatency = suspendEraseLatency;
+			idleDieNo = dieNo;
+			Dies = new Die*[dieNo];
+			//*ZWH*
+			slc_page_no_per_block = page_no_per_block / bits_per_cell;
+			if (slc_percentage == 0)
+				slc_block_no_per_plane = 0;
+			else
+				slc_block_no_per_plane = block_no_in_plane * slc_percentage / 100;
+			//*ZWH*
+			for (unsigned int dieID = 0; dieID < dieNo; dieID++)
+				Dies[dieID] = new Die(PlaneNoPerDie, Block_no_per_plane, Page_no_per_block, slc_block_no_per_plane, slc_page_no_per_block);
+		}
+
 		Flash_Chip::~Flash_Chip()
 		{
 			for (unsigned int dieID = 0; dieID < die_no; dieID++)
@@ -75,6 +144,7 @@ namespace NVM
 		
 		void Flash_Chip::Execute_simulator_event(MQSimEngine::Sim_Event* ev)
 		{
+			//std::cout << "Flash_Chip::Execute_simulator_event" << std::endl;
 			Chip_Sim_Event_Type eventType = (Chip_Sim_Event_Type)ev->Type;
 			Flash_Command* command = (Flash_Command*)ev->Parameters;
 
@@ -89,12 +159,24 @@ namespace NVM
 		LPA_type Flash_Chip::Get_metadata(flash_die_ID_type die_id, flash_plane_ID_type plane_id, flash_block_ID_type block_id, flash_page_ID_type page_id)//A simplification to decrease the complexity of GC execution! The GC unit may need to know the metadata of a page to decide if a page is valid or invalid. 
 		{
 			Page* page = &(Dies[die_id]->Planes[plane_id]->Blocks[block_id]->Pages[page_id]);
-			
 			return Dies[die_id]->Planes[plane_id]->Blocks[block_id]->Pages[page_id].Metadata.LPA;
+		}
+
+		void Flash_Chip::Write_metadata_chip(LPA_type lpa, flash_die_ID_type die_id, flash_plane_ID_type plane_id, flash_block_ID_type block_id, flash_page_ID_type page_id)
+		{
+			PageMetadata metadata;
+			metadata.LPA = lpa;
+			Page* page = &(Dies[die_id]->Planes[plane_id]->Blocks[block_id]->Pages[page_id]);
+			if (Get_metadata(die_id, plane_id, block_id, page_id) != NO_LPA)
+			{
+				std::cout << "Writing LPA: " << lpa << " to a page with valid LPA: " << Get_metadata(die_id, plane_id, block_id, page_id) << " in " << this->ChannelID << ":" << this->ChipID << ":" << die_id << ":" << plane_id << ":" << block_id << ":" << page_id << std::endl;
+			}
+			page->Write_metadata(metadata);
 		}
 
 		void Flash_Chip::start_command_execution(Flash_Command* command)
 		{
+			//std::cout << "---Initializing command execution started on channel: " << this->ChannelID << " chip: " << this->ChipID << " die: " << command->Address[0].DieID << " plane: " << command->Address[0].PlaneID << std::endl;
 			Die* targetDie = Dies[command->Address[0].DieID];
 
 			//If this is a simple command (not multiplane) then there should be only one address
@@ -117,7 +199,8 @@ namespace NVM
 				expectedFinishTime = targetDie->Expected_finish_time;
 				status = Internal_Status::BUSY;
 			}
-
+			
+			//std::cout << "------ Command execution started on channel: " << this->ChannelID << " chip: " << this->ChipID << " die: " << command->Address[0].DieID << " plane: " << command->Address[0].PlaneID << std::endl;
 			DEBUG("Command execution started on channel: " << this->ChannelID << " chip: " << this->ChipID)
 		}
 
@@ -157,28 +240,67 @@ namespace NVM
 			case CMD_PROGRAM_PAGE_MULTIPLANE:
 			case CMD_PROGRAM_PAGE_COPYBACK:
 			case CMD_PROGRAM_PAGE_COPYBACK_MULTIPLANE:
+			case CMD_PROGRAM_SLC:
+				//std::cout << "Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing program command" << std::endl;
 				DEBUG("Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing program command")
 				for (unsigned int planeCntr = 0; planeCntr < command->Address.size(); planeCntr++)
 				{
 					STAT_progamCount++;
 					targetDie->Planes[command->Address[planeCntr].PlaneID]->Progam_count++;
 					targetDie->Planes[command->Address[planeCntr].PlaneID]->Blocks[command->Address[planeCntr].BlockID]->Pages[command->Address[planeCntr].PageID].Write_metadata(command->Meta_data[planeCntr]);
+					//std::cout << "Metadata_write: " << command->Meta_data[planeCntr].LPA << ", to " << command->Address[planeCntr].ChannelID << ":" << command->Address[planeCntr].ChipID << ":" << command->Address[planeCntr].DieID << ":" << command->Address[planeCntr].PlaneID << ":" << command->Address[planeCntr].BlockID << ":" << command->Address[planeCntr].PageID << std::endl;
 				}
+				//std::cout << "One program operation is finished..." << std::endl;
+				break;
+			case CMD_PROGRAM_ONESHOT:
+				//std::cout << "Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing program command" << std::endl;
+				DEBUG("Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing program command")
+				for (unsigned int pageCntr = 0; pageCntr < command->Address.size(); pageCntr++)
+				{
+					STAT_progamCount++;
+					targetDie->Planes[command->Address[pageCntr].PlaneID]->Progam_count++;
+					targetDie->Planes[command->Address[pageCntr].PlaneID]->Blocks[command->Address[pageCntr].BlockID]->Pages[command->Address[pageCntr].PageID].Write_metadata(command->Meta_data[pageCntr]);
+					//std::cout << "Metadata_write: " << command->Meta_data[pageCntr].LPA << ", to " << command->Address[pageCntr].ChannelID << ":" << command->Address[pageCntr].ChipID << ":" << command->Address[pageCntr].DieID << ":" << command->Address[pageCntr].PlaneID << ":" << command->Address[pageCntr].BlockID << ":" << command->Address[pageCntr].PageID << std::endl;
+				}
+				//std::cout << "One program operation is finished..." << std::endl;
 				break;
 			case CMD_ERASE_BLOCK:
 			case CMD_ERASE_BLOCK_MULTIPLANE:
 			{
+				//std::cout << "erase operation fininshed in Flash_Chip" << std::endl;
 				for (unsigned int planeCntr = 0; planeCntr < command->Address.size(); planeCntr++)
 				{
 					STAT_eraseCount++;
 					targetDie->Planes[command->Address[planeCntr].PlaneID]->Erase_count++;
 					Block* targetBlock = targetDie->Planes[command->Address[planeCntr].PlaneID]->Blocks[command->Address[planeCntr].BlockID];
+					if (targetBlock->flash_type == Flash_Technology_Type::SLC)
+					{
+						for (unsigned int i = 0; i < slc_page_no_per_block; i++)
+						{
+							//targetBlock->Pages[i].Metadata.SourceStreamID = NO_STREAM;
+							//targetBlock->Pages[i].Metadata.Status = FREE_PAGE;
+							targetBlock->Pages[i].Metadata.LPA = NO_LPA;
+							//std::cout << "Meta_data_erase: " << "NO_LPA, to " << command->Address[planeCntr].ChannelID << ":" << command->Address[planeCntr].ChipID << ":" << command->Address[planeCntr].DieID << ":" << command->Address[planeCntr].PlaneID << ":" << command->Address[planeCntr].BlockID << ":" << i << std::endl;
+						}
+					}
+					else
+					{
+						for (unsigned int i = 0; i < page_no_per_block; i++)
+						{
+							//targetBlock->Pages[i].Metadata.SourceStreamID = NO_STREAM;
+							//targetBlock->Pages[i].Metadata.Status = FREE_PAGE;
+							targetBlock->Pages[i].Metadata.LPA = NO_LPA;
+							//std::cout << "Meta_data_erase: " << "NO_LPA, to " << command->Address[planeCntr].ChannelID << ":" << command->Address[planeCntr].ChipID << ":" << command->Address[planeCntr].DieID << ":" << command->Address[planeCntr].PlaneID << ":" << command->Address[planeCntr].BlockID << ":" << i << std::endl;
+						}
+					}
+					/*
 					for (unsigned int i = 0; i < page_no_per_block; i++)
 					{
 						//targetBlock->Pages[i].Metadata.SourceStreamID = NO_STREAM;
 						//targetBlock->Pages[i].Metadata.Status = FREE_PAGE;
 						targetBlock->Pages[i].Metadata.LPA = NO_LPA;
 					}
+					*/
 				}
 				break;
 			}

@@ -39,6 +39,8 @@ namespace Host_Components
 		//sim_time_type byte_transfer_delay_per_lane;//Since the transfer delay of one byte may take lower than one nano-second, we use 8-byte metric 
 		int packet_overhead;
 		std::queue<PCIe_Message*> Message_buffer_toward_ssd_device;
+		unsigned int num_of_massages_transfer_to_ssd;
+		unsigned int num_of_massages_to_be_transfer;
 		sim_time_type estimate_transfer_time(PCIe_Message* message)
 		{
 			switch (message->Type)

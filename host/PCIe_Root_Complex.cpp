@@ -4,7 +4,10 @@
 namespace Host_Components
 {
 	PCIe_Root_Complex::PCIe_Root_Complex(PCIe_Link* pcie_link, HostInterface_Types SSD_device_type, SATA_HBA* sata_hba, std::vector<Host_Components::IO_Flow_Base*>* IO_flows) :
-		pcie_link(pcie_link), SSD_device_type(SSD_device_type), sata_hba(sata_hba), IO_flows(IO_flows) {}
+		pcie_link(pcie_link), SSD_device_type(SSD_device_type), sata_hba(sata_hba), IO_flows(IO_flows) 
+	{
+		num_of_requests_write_to_ssd = 0;
+	}
 
 	void PCIe_Root_Complex::Write_to_memory(const uint64_t address, const void* payload)
 	{
@@ -40,6 +43,11 @@ namespace Host_Components
 		pcie_message->Payload = (void*)(intptr_t)write_value;
 		pcie_message->Payload_size = sizeof(write_value);
 		pcie_link->Deliver(pcie_message);
+		num_of_requests_write_to_ssd++;
+		/*
+		if (num_of_requests_write_to_ssd % 100000 == 0)
+			std::cout << num_of_requests_write_to_ssd << " requests are to write to ssd by PCIe Root Complex..." << std::endl;
+			*/
 	}
 
 	void PCIe_Root_Complex::Read_from_memory(const uint64_t address, const unsigned int read_size)

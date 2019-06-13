@@ -24,8 +24,10 @@ namespace Host_Components
 		STAT_transferred_bytes_total(0), STAT_transferred_bytes_read(0), STAT_transferred_bytes_write(0), progress(0), next_progress_step(0),
 		enabled_logging(enabled_logging), logging_period(logging_period), logging_file_path(logging_file_path)
 	{
-		Host_IO_Request* t= NULL;
-
+		Host_IO_Reqeust* t= NULL;
+		STAT_submitted_request_count = 0;
+		num_of_nvme_request_waiting = 0;
+		num_request_generated_to_sqe = 0;
 		switch (SSD_device_type)
 		{
 		case HostInterface_Types::NVME:
@@ -132,12 +134,22 @@ namespace Host_Components
 		next_logging_milestone = logging_period;
 		if (enabled_logging)
 			log_file.open(logging_file_path, std::ofstream::out);
-		log_file << "SimulationTime(us)\t" << "ReponseTime(us)\t" << "EndToEndDelay(us)"<< std::endl;
+		log_file << "SimulationTime(us)\t" << "ReponseTime(us)\t" << "EndToEndDelay(us)\t"<< "ReadRequestCount\t" << "ReadResponseTime(us)\t" << "WriteRequestCount\t" << "WriteResponseTime(us)" << std::endl;
 		STAT_sum_device_response_time_short_term = 0;
 		STAT_serviced_request_count_short_term = 0;
+		/*ZWH*/
+		STAT_sum_device_read_response_time_short_term = 0;
+		STAT_sum_device_write_response_time_short_term = 0;
+		STAT_serviced_read_request_count_short_term = 0;
+		STAT_serviced_write_request_count_short_term = 0;
+		STAT_triggered_slc_write_short_term = 0;
+		STAT_triggered_tlc_write_short_term = 0;
+		STAT_last_triggered_slc_write = 0;
+		STAT_last_triggered_tlc_write = 0;
+		/*ZWH*/
 	}
 
-	void IO_Flow_Base::SATA_consume_io_request(Host_IO_Request* request)
+	void IO_Flow_Base::SATA_consume_io_request(Host_IO_Reqeust* request)
 	{
 		sim_time_type device_response_time = Simulator->Time() - request->Enqueue_time;
 		sim_time_type request_delay = Simulator->Time() - request->Arrival_time;
@@ -156,7 +168,7 @@ namespace Host_Components
 			STAT_max_request_delay = request_delay;
 		if (request_delay < STAT_min_request_delay)
 			STAT_min_request_delay = request_delay;
-		STAT_transferred_bytes_total += request->LBA_count * SECTOR_SIZE_IN_BYTE;
+		STAT_transferred_bytes_total = request->LBA_count * SECTOR_SIZE_IN_BYTE;
 
 		if (request->Type == Host_IO_Request_Type::READ)
 		{
@@ -171,7 +183,7 @@ namespace Host_Components
 				STAT_max_request_delay_read = request_delay;
 			if (request_delay < STAT_min_request_delay_read)
 				STAT_min_request_delay_read = request_delay;
-			STAT_transferred_bytes_read += request->LBA_count * SECTOR_SIZE_IN_BYTE;
+			STAT_transferred_bytes_read = request->LBA_count * SECTOR_SIZE_IN_BYTE;
 		}
 		else
 		{
@@ -186,7 +198,7 @@ namespace Host_Components
 				STAT_max_request_delay_write = request_delay;
 			if (request_delay < STAT_min_request_delay_write)
 				STAT_min_request_delay_write = request_delay;
-			STAT_transferred_bytes_write += request->LBA_count * SECTOR_SIZE_IN_BYTE;
+			STAT_transferred_bytes_write = request->LBA_count * SECTOR_SIZE_IN_BYTE;
 		}
 
 		delete request;
@@ -228,7 +240,7 @@ namespace Host_Components
 	void IO_Flow_Base::NVMe_consume_io_request(Completion_Queue_Entry* cqe)
 	{
 		//Find the request and update statistics
-		Host_IO_Request* request = nvme_software_request_queue[cqe->Command_Identifier];
+		Host_IO_Reqeust* request = nvme_software_request_queue[cqe->Command_Identifier];
 		nvme_software_request_queue.erase(cqe->Command_Identifier);
 		available_command_ids.insert(cqe->Command_Identifier);
 		sim_time_type device_response_time = Simulator->Time() - request->Enqueue_time;
@@ -248,12 +260,14 @@ namespace Host_Components
 			STAT_max_request_delay = request_delay;
 		if (request_delay < STAT_min_request_delay)
 			STAT_min_request_delay = request_delay;
-		STAT_transferred_bytes_total += request->LBA_count * SECTOR_SIZE_IN_BYTE;
+		STAT_transferred_bytes_total = request->LBA_count * SECTOR_SIZE_IN_BYTE;
 		
 		if (request->Type == Host_IO_Request_Type::READ)
 		{
 			STAT_serviced_read_request_count++;
 			STAT_sum_device_response_time_read += device_response_time;
+			STAT_serviced_read_request_count_short_term++;
+			STAT_sum_device_read_response_time_short_term += device_response_time;
 			STAT_sum_request_delay_read += request_delay;
 			if (device_response_time > STAT_max_device_response_time_read)
 				STAT_max_device_response_time_read = device_response_time;
@@ -263,12 +277,14 @@ namespace Host_Components
 				STAT_max_request_delay_read = request_delay;
 			if (request_delay < STAT_min_request_delay_read)
 				STAT_min_request_delay_read = request_delay;
-			STAT_transferred_bytes_read += request->LBA_count * SECTOR_SIZE_IN_BYTE;
+			STAT_transferred_bytes_read = request->LBA_count * SECTOR_SIZE_IN_BYTE;
 		}
 		else
 		{
 			STAT_serviced_write_request_count++;
 			STAT_sum_device_response_time_write += device_response_time;
+			STAT_serviced_write_request_count_short_term++;
+			STAT_sum_device_write_response_time_short_term += device_response_time;
 			STAT_sum_request_delay_write += request_delay;
 			if (device_response_time > STAT_max_device_response_time_write)
 				STAT_max_device_response_time_write = device_response_time;
@@ -278,7 +294,7 @@ namespace Host_Components
 				STAT_max_request_delay_write = request_delay;
 			if (request_delay < STAT_min_request_delay_write)
 				STAT_min_request_delay_write = request_delay;
-			STAT_transferred_bytes_write += request->LBA_count * SECTOR_SIZE_IN_BYTE;
+			STAT_transferred_bytes_write = request->LBA_count * SECTOR_SIZE_IN_BYTE;
 		}
 
 		delete request;
@@ -291,7 +307,7 @@ namespace Host_Components
 		while(waiting_requests.size() > 0)
 			if (!NVME_SQ_FULL(nvme_queue_pair) && available_command_ids.size() > 0)
 			{
-				Host_IO_Request* new_req = waiting_requests.front();
+				Host_IO_Reqeust* new_req = waiting_requests.front();
 				waiting_requests.pop_front();
 				if (nvme_software_request_queue[*available_command_ids.begin()] != NULL)
 					PRINT_ERROR("Unexpteced situation in IO_Flow_Base! Overwriting a waiting I/O request in the queue!")
@@ -331,23 +347,34 @@ namespace Host_Components
 				else progress_bar += " ";
 			}
 			progress_bar += "] ";
-			PRINT_MESSAGE(progress_bar << " " << progress << "% progress in " << ID() << std::endl)
+			PRINT_MESSAGE(progress_bar << " " << progress << "% progress in " << ID())
+			//PRINT_MESSAGE(STAT_generated_request_count << " " << STAT_generated_read_request_count << " " << STAT_generated_write_request_count)
+			//PRINT_MESSAGE(STAT_serviced_request_count << " " << STAT_serviced_read_request_count << " " << STAT_serviced_write_request_count << std::endl)
 			next_progress_step += 5;
 		}
 
 		if (Simulator->Time() > next_logging_milestone)
 		{
-			log_file << Simulator->Time() / SIM_TIME_TO_MICROSECONDS_COEFF << "\t" << Get_device_response_time_short_term() << "\t" << Get_end_to_end_request_delay_short_term() << std::endl;
+			STAT_triggered_slc_write_short_term = SSD_Components::Stats::UserSLCWriteCount_per_stream[0] - STAT_last_triggered_slc_write;
+			STAT_last_triggered_slc_write = SSD_Components::Stats::UserSLCWriteCount_per_stream[0];
+			STAT_triggered_tlc_write_short_term = SSD_Components::Stats::UserTLCWriteCount_per_stream[0] - STAT_last_triggered_tlc_write;
+			STAT_last_triggered_tlc_write = SSD_Components::Stats::UserTLCWriteCount_per_stream[0];
+			log_file << Simulator->Time() / SIM_TIME_TO_MICROSECONDS_COEFF << "\t" << Get_device_response_time_short_term() << "\t" << Get_end_to_end_request_delay_short_term() << "\t" << STAT_serviced_read_request_count_short_term << "\t" << Get_device_read_response_time_short_term() << "\t" << STAT_serviced_write_request_count_short_term << "\t" << Get_device_write_response_time_short_term() << "\t" << STAT_triggered_slc_write_short_term << "\t" << STAT_triggered_tlc_write_short_term << std::endl;
 			STAT_sum_device_response_time_short_term = 0;
 			STAT_sum_request_delay_short_term = 0;
 			STAT_serviced_request_count_short_term = 0;
+			STAT_sum_device_read_response_time_short_term = 0;
+			STAT_sum_device_write_response_time_short_term = 0;
+			STAT_serviced_read_request_count_short_term = 0;
+			STAT_serviced_write_request_count_short_term = 0;
 			next_logging_milestone = Simulator->Time() + logging_period;
 		}
 	}
 	Submission_Queue_Entry* IO_Flow_Base::NVMe_read_sqe(uint64_t address)
 	{
 		Submission_Queue_Entry* sqe = new Submission_Queue_Entry;
-		Host_IO_Request* request = request_queue_in_memory[(uint16_t)((address - nvme_queue_pair.Submission_queue_memory_base_address) / sizeof(Submission_Queue_Entry))];
+		num_request_generated_to_sqe++;
+		Host_IO_Reqeust* request = request_queue_in_memory[(uint16_t)((address - nvme_queue_pair.Submission_queue_memory_base_address) / sizeof(Submission_Queue_Entry))];
 		if (request == NULL)
 			throw std::invalid_argument(this->ID() + ": Request to access a submission queue entry that does not exist.");
 		sqe->Command_Identifier = request->IO_queue_info;
@@ -356,6 +383,8 @@ namespace Host_Components
 			sqe->Opcode = NVME_READ_OPCODE;
 			sqe->Command_specific[0] = (uint32_t) request->Start_LBA;
 			sqe->Command_specific[1] = (uint32_t)(request->Start_LBA >> 32);
+			if (request->LBA_count > 65535)
+				request->LBA_count = 65535;
 			sqe->Command_specific[2] = ((uint32_t)((uint16_t)request->LBA_count)) & (uint32_t)(0x0000ffff);
 			sqe->PRP_entry_1 = (DATA_MEMORY_REGION);//Dummy addresses, just to emulate data read/write access
 			sqe->PRP_entry_2 = (DATA_MEMORY_REGION + 0x1000);//Dummy addresses
@@ -365,19 +394,35 @@ namespace Host_Components
 			sqe->Opcode = NVME_WRITE_OPCODE;
 			sqe->Command_specific[0] = (uint32_t)request->Start_LBA;
 			sqe->Command_specific[1] = (uint32_t)(request->Start_LBA >> 32);
+			if (request->LBA_count > 65535)
+				request->LBA_count = 65535;
 			sqe->Command_specific[2] = ((uint32_t)((uint16_t)request->LBA_count)) & (uint32_t)(0x0000ffff);
 			sqe->PRP_entry_1 = (DATA_MEMORY_REGION);//Dummy addresses, just to emulate data read/write access
 			sqe->PRP_entry_2 = (DATA_MEMORY_REGION + 0x1000);//Dummy addresses
 		}
+		/*
+		if (num_request_generated_to_sqe == 452787)
+		{
+			std::cout << "break point in NVMe_read_sqe " << sqe << std::endl;
+			std::cin.get();
+		}
+		*/
 		return sqe;
 	}
-	void IO_Flow_Base::Submit_io_request(Host_IO_Request* request)
+	void IO_Flow_Base::Submit_io_request(Host_IO_Reqeust* request)
 	{
 		switch (SSD_device_type)
 		{
 		case HostInterface_Types::NVME:
 			if (NVME_SQ_FULL(nvme_queue_pair) || available_command_ids.size() == 0)//If either of software or hardware queue is full
+			{
 				waiting_requests.push_back(request);
+				num_of_nvme_request_waiting++;
+				/*
+				if (num_of_nvme_request_waiting % 100000 == 0)
+					std::cout << "                    " << num_of_nvme_request_waiting << " are waiting in the waiting_requests of IO_Flow_Base" << std::endl;
+					*/
+			}
 			else
 			{
 				if (nvme_software_request_queue[*available_command_ids.begin()] != NULL)
@@ -399,6 +444,11 @@ namespace Host_Components
 			sata_hba->Submit_io_request(request);
 			break;
 		}
+		STAT_submitted_request_count++;
+		/*
+		if(STAT_submitted_request_count % 100000 == 0)
+			std::cout << "                               " << STAT_submitted_request_count << " : requests are submitted" << std::endl;
+			*/
 	}
 	void IO_Flow_Base::NVMe_update_and_submit_completion_queue_tail()
 	{
@@ -433,6 +483,18 @@ namespace Host_Components
 			return 0;
 		return (uint32_t)(STAT_sum_device_response_time / STAT_serviced_request_count / SIM_TIME_TO_MICROSECONDS_COEFF);
 	}
+	uint32_t IO_Flow_Base::Get_device_write_response_time()
+	{
+		if (STAT_serviced_write_request_count == 0)
+			return 0;
+		return (uint32_t)(STAT_sum_device_response_time_write / STAT_serviced_write_request_count / SIM_TIME_TO_MICROSECONDS_COEFF);
+	}
+	uint32_t IO_Flow_Base::Get_device_read_response_time()
+	{
+		if (STAT_serviced_read_request_count == 0)
+			return 0;
+		return (uint32_t)(STAT_sum_device_response_time_read / STAT_serviced_read_request_count / SIM_TIME_TO_MICROSECONDS_COEFF);
+	}
 	uint32_t IO_Flow_Base::Get_min_device_response_time()
 	{
 		return (uint32_t)(STAT_min_device_response_time / SIM_TIME_TO_MICROSECONDS_COEFF);
@@ -460,6 +522,18 @@ namespace Host_Components
 		if (STAT_serviced_request_count_short_term == 0)
 			return 0;
 		return (uint32_t)(STAT_sum_device_response_time_short_term / STAT_serviced_request_count_short_term / SIM_TIME_TO_MICROSECONDS_COEFF);
+	}
+	uint32_t IO_Flow_Base::Get_device_read_response_time_short_term()
+	{
+		if (STAT_serviced_read_request_count_short_term == 0)
+			return 0;
+		return (uint32_t)(STAT_sum_device_read_response_time_short_term / STAT_serviced_read_request_count_short_term / SIM_TIME_TO_MICROSECONDS_COEFF);
+	}
+	uint32_t IO_Flow_Base::Get_device_write_response_time_short_term()
+	{
+		if (STAT_serviced_write_request_count_short_term == 0)
+			return 0;
+		return (uint32_t)(STAT_sum_device_write_response_time_short_term / STAT_serviced_write_request_count_short_term / SIM_TIME_TO_MICROSECONDS_COEFF);
 	}
 	uint32_t IO_Flow_Base::Get_end_to_end_request_delay_short_term()
 	{
@@ -501,33 +575,16 @@ namespace Host_Components
 		val = std::to_string((double)STAT_generated_write_request_count / (Simulator->Time() / SIM_TIME_TO_SECONDS_COEFF));
 		xmlwriter.Write_attribute_string(attr, val);
 
-		attr = "Bytes_Transferred";
-		val = std::to_string((double)STAT_transferred_bytes_total);
-		xmlwriter.Write_attribute_string(attr, val);
-
-		attr = "Bytes_Transferred_Read";
-		val = std::to_string((double)STAT_transferred_bytes_read);
-		xmlwriter.Write_attribute_string(attr, val);
-
-		attr = "Bytes_Transferred_Write";
-		val = std::to_string((double)STAT_transferred_bytes_write);
-		xmlwriter.Write_attribute_string(attr, val);
-
-		attr = "Bandwidth";
-		val = std::to_string((double)STAT_transferred_bytes_total / (Simulator->Time() / SIM_TIME_TO_SECONDS_COEFF));
-		xmlwriter.Write_attribute_string(attr, val);
-
-		attr = "Bandwidth_Read";
-		val = std::to_string((double)STAT_transferred_bytes_read / (Simulator->Time() / SIM_TIME_TO_SECONDS_COEFF));
-		xmlwriter.Write_attribute_string(attr, val);
-
-		attr = "Bandwidth_Write";
-		val = std::to_string((double)STAT_transferred_bytes_write / (Simulator->Time() / SIM_TIME_TO_SECONDS_COEFF));
-		xmlwriter.Write_attribute_string(attr, val);
-
-
 		attr = "Device_Response_Time";
 		val = std::to_string(Get_device_response_time());
+		xmlwriter.Write_attribute_string(attr, val);
+
+		attr = "Device_R_Response_Time";
+		val = std::to_string(Get_device_read_response_time());
+		xmlwriter.Write_attribute_string(attr, val);
+
+		attr = "Device_W_Response_Time";
+		val = std::to_string(Get_device_write_response_time());
 		xmlwriter.Write_attribute_string(attr, val);
 
 		attr = "Min_Device_Response_Time";
@@ -548,6 +605,14 @@ namespace Host_Components
 
 		attr = "Max_End_to_End_Request_Delay";
 		val = std::to_string(Get_max_end_to_end_request_delay());
+		xmlwriter.Write_attribute_string(attr, val);
+
+		attr = "User_SLC_Flash_Write_Count";
+		val = std::to_string(SSD_Components::Stats::UserSLCWriteCount_per_stream[flow_id]);
+		xmlwriter.Write_attribute_string(attr, val);
+
+		attr = "User_TLC_Flash_Write_Count";
+		val = std::to_string(SSD_Components::Stats::UserTLCWriteCount_per_stream[flow_id]);
 		xmlwriter.Write_attribute_string(attr, val);
 
 		xmlwriter.Write_close_tag();
