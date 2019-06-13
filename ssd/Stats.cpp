@@ -9,6 +9,14 @@ namespace SSD_Components
 	unsigned long Stats::IssuedMultiplaneReadCMD = 0;
 	unsigned long Stats::IssuedMultiplaneCopybackReadCMD = 0;
 	unsigned long Stats::IssuedProgramCMD = 0;
+	/*ZWH*/
+	unsigned long Stats::UserSLCWriteCount = 0;
+	unsigned long Stats::UserTLCWriteCount = 0;
+	unsigned long Stats::UserSLCWriteCount_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
+	unsigned long Stats::UserTLCWriteCount_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
+	unsigned long Stats::IssuedSLCProgramCMD = 0;
+	unsigned long Stats::IssuedTLCProgramCMD = 0;
+	/*ZWH*/
 	unsigned long Stats::IssuedInterleaveProgramCMD = 0;
 	unsigned long Stats::IssuedMultiplaneProgramCMD = 0;
 	unsigned long Stats::IssuedMultiplaneCopybackProgramCMD = 0;
@@ -31,6 +39,11 @@ namespace SSD_Components
 
 	unsigned int Stats::Total_gc_executions = 0, Stats::Total_gc_executions_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
 	unsigned int Stats::Total_page_movements_for_gc = 0, Stats::Total_gc_page_movements_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
+
+	unsigned int Stats::Data_migration_executions = 0, Stats::Data_migration_executions_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
+	unsigned int Stats::Data_migration_page_movements = 0,  Stats::Data_migration_page_movements_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
+	unsigned int Stats::Tlc_gc_executions = 0, Stats::Tlc_gc_executions_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
+	unsigned int Stats::Tlc_gc_page_movements = 0, Stats::Tlc_gc_page_movements_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
 
 	unsigned int Stats::Total_wl_executions = 0, Stats::Total_wl_executions_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
 	unsigned int Stats::Total_page_movements_for_wl = 0, Stats::Total_wl_page_movements_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
@@ -72,9 +85,14 @@ namespace SSD_Components
 		CMT_hits = 0; readTR_CMT_hits = 0; writeTR_CMT_hits = 0;
 		CMT_miss = 0; readTR_CMT_miss = 0; writeTR_CMT_miss = 0;
 		total_CMT_queries = 0; total_readTR_CMT_queries = 0; total_writeTR_CMT_queries = 0;
+		UserSLCWriteCount = 0; UserTLCWriteCount = 0;
+		IssuedSLCProgramCMD = 0; IssuedTLCProgramCMD = 0;
 
 		Total_gc_executions = 0;  Total_page_movements_for_gc = 0;
 		Total_wl_executions = 0;  Total_page_movements_for_wl = 0;
+
+		Data_migration_executions = 0; Data_migration_page_movements = 0;
+		Tlc_gc_executions = 0; Tlc_gc_page_movements = 0;
 
 		for (stream_id_type stream_id = 0; stream_id < MAX_SUPPORT_STREAMS; stream_id++)
 		{
@@ -87,6 +105,8 @@ namespace SSD_Components
 			Total_gc_page_movements_per_stream[stream_id] = 0;
 			Total_wl_executions_per_stream[stream_id] = 0;
 			Total_wl_page_movements_per_stream[stream_id] = 0;
+			UserSLCWriteCount_per_stream[stream_id] = 0;
+			UserTLCWriteCount_per_stream[stream_id] = 0;
 		}
 	}
 

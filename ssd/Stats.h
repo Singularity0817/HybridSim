@@ -12,9 +12,14 @@ namespace SSD_Components
 		static void Clear_stats(unsigned int channel_no, unsigned int chip_no_per_channel, unsigned int die_no_per_chip, unsigned int plane_no_per_die, unsigned int block_no_per_plane, unsigned int page_no_per_block, unsigned int max_allowed_block_erase_count);
 		static unsigned long IssuedReadCMD, IssuedCopybackReadCMD, IssuedInterleaveReadCMD, IssuedMultiplaneReadCMD, IssuedMultiplaneCopybackReadCMD;
 		static unsigned long IssuedProgramCMD, IssuedInterleaveProgramCMD, IssuedMultiplaneProgramCMD, IssuedInterleaveMultiplaneProgramCMD, IssuedCopybackProgramCMD, IssuedMultiplaneCopybackProgramCMD;
+		static unsigned long IssuedSLCProgramCMD, IssuedTLCProgramCMD;
 		static unsigned long IssuedEraseCMD, IssuedInterleaveEraseCMD, IssuedMultiplaneEraseCMD, IssuedInterleaveMultiplaneEraseCMD;
 
+		/*ZWH*/
+		static unsigned long UserSLCWriteCount, UserTLCWriteCount;
+		static unsigned long UserSLCWriteCount_per_stream[MAX_SUPPORT_STREAMS], UserTLCWriteCount_per_stream[MAX_SUPPORT_STREAMS];
 		static unsigned long IssuedSuspendProgramCMD, IssuedSuspendEraseCMD;
+		/*ZWH*/
 
 		static unsigned long Total_flash_reads_for_mapping, Total_flash_writes_for_mapping;
 		static unsigned long Total_flash_reads_for_mapping_per_stream[MAX_SUPPORT_STREAMS], Total_flash_writes_for_mapping_per_stream[MAX_SUPPORT_STREAMS];
@@ -30,6 +35,10 @@ namespace SSD_Components
 
 		static unsigned int Total_gc_executions, Total_gc_executions_per_stream[MAX_SUPPORT_STREAMS];
 		static unsigned int Total_page_movements_for_gc, Total_gc_page_movements_per_stream[MAX_SUPPORT_STREAMS];
+		static unsigned int Data_migration_executions, Data_migration_executions_per_stream[MAX_SUPPORT_STREAMS];
+		static unsigned int Data_migration_page_movements, Data_migration_page_movements_per_stream[MAX_SUPPORT_STREAMS];
+		static unsigned int Tlc_gc_executions, Tlc_gc_executions_per_stream[MAX_SUPPORT_STREAMS];
+		static unsigned int Tlc_gc_page_movements, Tlc_gc_page_movements_per_stream[MAX_SUPPORT_STREAMS];
 
 		static unsigned int Total_wl_executions, Total_wl_executions_per_stream[MAX_SUPPORT_STREAMS];
 		static unsigned int Total_page_movements_for_wl, Total_wl_page_movements_per_stream[MAX_SUPPORT_STREAMS];

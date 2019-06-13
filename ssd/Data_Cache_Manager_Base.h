@@ -37,6 +37,7 @@ namespace SSD_Components
 		void Connect_to_user_memory_transaction_serviced_signal(MemoryTransactionServicedSignalHanderType);
 		void Set_host_interface(Host_Interface_Base* host_interface);
 		virtual void Do_warmup(std::vector<Utils::Workload_Statistics*> workload_stats) = 0;
+		void Request_data_migration_check();
 	protected:
 		static Data_Cache_Manager_Base* _my_instance;
 		Host_Interface_Base* host_interface;

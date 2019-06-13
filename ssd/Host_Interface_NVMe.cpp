@@ -3,6 +3,7 @@
 #include "Host_Interface_NVMe.h"
 #include "NVM_Transaction_Flash_RD.h"
 #include "NVM_Transaction_Flash_WR.h"
+#include "FTL.h"
 
 
 namespace SSD_Components
@@ -17,7 +18,14 @@ namespace SSD_Components
 
 	Input_Stream_Manager_NVMe::Input_Stream_Manager_NVMe(Host_Interface_Base* host_interface, uint16_t queue_fetch_szie) :
 		Input_Stream_Manager_Base(host_interface), Queue_fetch_size(queue_fetch_szie)
-	{}
+	{
+		Recieved_requests_count = 0;
+		Recieved_read_requests_count = 0;
+		Recieved_write_requests_count = 0;
+		Completed_requests_count = 0;
+		Completed_read_requests_count = 0;
+		Completed_write_requests_count = 0;
+	}
 
 	stream_id_type Input_Stream_Manager_NVMe::Create_new_stream(IO_Flow_Priority_Class priority_class, LHA_type start_logical_sector_address, LHA_type end_logical_sector_address,
 		uint64_t submission_queue_base_address, uint16_t submission_queue_size,	uint64_t completion_queue_base_address, uint16_t completion_queue_size)
@@ -58,11 +66,13 @@ namespace SSD_Components
 
 	inline void Input_Stream_Manager_NVMe::Handle_new_arrived_request(User_Request* request)
 	{
+		Recieved_requests_count++;
 		((Input_Stream_NVMe*)input_streams[request->Stream_id])->Submission_head_informed_to_host++;
 		if (((Input_Stream_NVMe*)input_streams[request->Stream_id])->Submission_head_informed_to_host == ((Input_Stream_NVMe*)input_streams[request->Stream_id])->Submission_queue_size)//Circular queue implementation
 			((Input_Stream_NVMe*)input_streams[request->Stream_id])->Submission_head_informed_to_host = 0;
 		if (request->Type == UserRequestType::READ)
 		{
+			Recieved_read_requests_count++;
 			((Input_Stream_NVMe*)input_streams[request->Stream_id])->Waiting_user_requests.push_back(request);
 			((Input_Stream_NVMe*)input_streams[request->Stream_id])->STAT_number_of_read_requests++;
 			segment_user_request(request);
@@ -71,28 +81,43 @@ namespace SSD_Components
 		}
 		else//This is a write request
 		{
+			Recieved_write_requests_count++;
 			((Input_Stream_NVMe*)input_streams[request->Stream_id])->Waiting_user_requests.push_back(request);
 			((Input_Stream_NVMe*)input_streams[request->Stream_id])->STAT_number_of_write_requests++;
 			((Host_Interface_NVMe*)host_interface)->request_fetch_unit->Fetch_write_data(request);
 		}
+		Simulator->Last_request_triggerred_time = request->STAT_InitiationTime;
+		host_interface->Go_check_data_migration();
+		//Simulator->Register_sim_event(Simulator->Time()+dm_interval, ((FTL*)(host_interface->nvm_firmware))->GC_and_WL_Unit, NULL, 0);
+		//std::cout << "**R " << Recieved_requests_count << " : " << Recieved_read_requests_count << " : " << Recieved_write_requests_count << std::endl;
 	}
 
 	inline void Input_Stream_Manager_NVMe::Handle_arrived_write_data(User_Request* request)
 	{
 		segment_user_request(request);
+		((Input_Stream_NVMe*)input_streams[request->Stream_id])->On_the_fly_write_transactions += request->Transaction_list.size();
 		((Host_Interface_NVMe*)host_interface)->broadcast_user_request_arrival_signal(request);
 	}
 
 	inline void Input_Stream_Manager_NVMe::Handle_serviced_request(User_Request* request)
 	{
+		Completed_requests_count++;
 		stream_id_type stream_id = request->Stream_id;
 		((Input_Stream_NVMe*)input_streams[request->Stream_id])->Waiting_user_requests.remove(request);
 		((Input_Stream_NVMe*)input_streams[stream_id])->On_the_fly_requests--;
 
 		DEBUG("** Host Interface: Request #" << request->ID << " from stream #" << request->Stream_id << " is finished")
-
+		request->STAT_ResponseTime = Simulator->Time() - request->STAT_InitiationTime;
 		if (request->Type == UserRequestType::READ)//If this is a read request, then the read data should be written to host memory
+		{
+			Completed_read_requests_count++;
 			((Host_Interface_NVMe*)host_interface)->request_fetch_unit->Send_read_data(request);
+		}
+		else
+		{
+			Completed_write_requests_count++;
+			//((Input_Stream_NVMe*)input_streams[stream_id])->On_the_fly_write_transactions -= request->Transaction_list.size();
+		}
 
 		if (((Input_Stream_NVMe*)input_streams[stream_id])->Submission_head != ((Input_Stream_NVMe*)input_streams[stream_id])->Submission_tail)//there are waiting requests in the submission queue but have not been fetched, due to Queue_fetch_size limit
 		{
@@ -120,6 +145,78 @@ namespace SSD_Components
 
 		inform_host_request_completed(stream_id, request);//Completion queue is not full, so the device can DMA the completion queue entry to the host
 		DELETE_REQUEST_NVME(request);
+		/*
+		std::cout << "        --C " << Completed_requests_count << " : " << Completed_read_requests_count << " : " << Completed_write_requests_count <<  " * " << Recieved_requests_count - Completed_requests_count << std::endl;
+		
+		if (Get_the_oldest_request() == NULL)
+		{
+			std::cout << "                --T " << "The waiting list is clearred!" << std::endl;
+		}
+		else
+		{
+			std::cout << "                --T " << Total_requests_on_the_fly() << " The oldest request is " << Get_the_oldest_request()->ID << " with age " << How_old_is_the_oldest_request()<< std::endl;
+		}
+		
+		
+		if (How_old_is_the_oldest_request() > 10000000000)
+		{
+			std::cout << "+++ A request is being blocked...." << std::endl;
+			//std::cin.get();
+			User_Request* request = Get_the_oldest_request();
+			std::cout << "+++ " << request->ID << "  " << request->Size_in_byte << " " << request->SizeInSectors << " " << request->Start_LBA << " " << request->Transaction_list.size();
+			//std::cin.get();
+		}
+		*/
+	}
+
+	unsigned long Input_Stream_Manager_NVMe::Total_requests_on_the_fly()
+	{
+		unsigned long total_requests_on_the_fly = 0;
+		for (int i = 0; i < input_streams.size(); i++)
+		{
+			total_requests_on_the_fly += ((Input_Stream_NVMe*)input_streams[i])->On_the_fly_requests;
+		}
+		return total_requests_on_the_fly;
+	}
+
+	unsigned long Input_Stream_Manager_NVMe::Total_transactions_on_the_fly()
+	{
+		unsigned long total_transactions_on_the_fly = 0;
+		for (int i = 0; i < input_streams.size(); i++)
+		{
+			total_transactions_on_the_fly += ((Input_Stream_NVMe*)input_streams[i])->On_the_fly_write_transactions;
+		}
+		return total_transactions_on_the_fly;
+	}
+
+	sim_time_type Input_Stream_Manager_NVMe::How_old_is_the_oldest_request()
+	{
+		sim_time_type oldest_age, temp_age;
+		oldest_age = 0;
+		for (int i = 0; i < input_streams.size(); i++)
+		{
+			if (((Input_Stream_NVMe*)input_streams[i])->Waiting_user_requests.size() == 0)
+				continue;
+			temp_age = Simulator->Time() - (*((Input_Stream_NVMe*)input_streams[i])->Waiting_user_requests.begin())->STAT_InitiationTime;
+			if (temp_age > oldest_age)
+				oldest_age = temp_age;
+		}
+		return oldest_age;
+	}
+
+	User_Request* Input_Stream_Manager_NVMe::Get_the_oldest_request()
+	{
+		if (((Input_Stream_NVMe*)input_streams[0])->Waiting_user_requests.size() > 0)
+			return *((Input_Stream_NVMe*)input_streams[0])->Waiting_user_requests.begin();
+		else
+		{
+			return NULL;
+		}
+	}
+
+	void Input_Stream_Manager_NVMe::Decrease_on_the_fly_write_transaction(stream_id_type stream_id)
+	{
+		((Input_Stream_NVMe*)this->input_streams[stream_id])->On_the_fly_write_transactions--;
 	}
 	
 	uint16_t Input_Stream_Manager_NVMe::Get_submission_queue_depth(stream_id_type stream_id)
@@ -147,6 +244,13 @@ namespace SSD_Components
 	
 	void Input_Stream_Manager_NVMe::segment_user_request(User_Request* user_request)
 	{
+		/*
+		if (user_request->ID == "4144728")
+		{
+			std::cout << "Target request is segmenting...." << std::endl;
+			std::cin.get();
+		}
+		*/
 		LHA_type lsa = user_request->Start_LBA;
 		LHA_type lsa2 = user_request->Start_LBA;
 		unsigned int req_size = user_request->SizeInSectors;
@@ -191,6 +295,13 @@ namespace SSD_Components
 			lsa = lsa + transaction_size;
 			hanled_sectors_count += transaction_size;			
 		}
+		/*
+		if (user_request->ID == "620568")
+		{
+			std::cout << "Segmented user request " << user_request->ID << "  " << user_request->Size_in_byte << " " << user_request->Start_LBA  << " " << user_request->Transaction_list.size() << std::endl;
+			std::cin.get();
+		}
+		*/
 	}
 
 	Request_Fetch_Unit_NVMe::Request_Fetch_Unit_NVMe(Host_Interface_Base* host_interface) :
@@ -288,6 +399,14 @@ namespace SSD_Components
 			default:
 				throw std::invalid_argument("NVMe command is not supported!");
 			}
+			/*
+			if (new_reqeust->ID == "620568")
+			{
+				std::cout << "target request is recieced in Host_Interface_NVMe." << std::endl;
+				std::cout << new_reqeust->ID << "  " << new_reqeust->Size_in_byte << " " << new_reqeust->SizeInSectors << " " << new_reqeust->Start_LBA << " " << new_reqeust->Transaction_list.size() << std::endl;
+				std::cin.get();
+			}
+			*/
 			((Input_Stream_Manager_NVMe*)(hi->input_stream_manager))->Handle_new_arrived_request(new_reqeust);
 			break;
 		}
@@ -359,6 +478,18 @@ namespace SSD_Components
 		this->input_stream_manager = new Input_Stream_Manager_NVMe(this, queue_fetch_size);
 		this->request_fetch_unit = new Request_Fetch_Unit_NVMe(this);
 	}
+	/*
+	Host_Interface_NVMe::Host_Interface_NVMe(const sim_object_id_type& id,
+		LHA_type max_logical_sector_address, uint16_t submission_queue_depth, uint16_t completion_queue_depth,
+		unsigned int no_of_input_streams, uint16_t queue_fetch_size, unsigned int sectors_per_page, Data_Cache_Manager_Base* cache,
+		GC_and_WL_Unit_Page_Level* gc_unit) :
+		Host_Interface_Base(id, HostInterface_Types::NVME, max_logical_sector_address, sectors_per_page, cache, gc_unit),
+		submission_queue_depth(submission_queue_depth), completion_queue_depth(completion_queue_depth), no_of_input_streams(no_of_input_streams)
+	{
+		this->input_stream_manager = new Input_Stream_Manager_NVMe(this, queue_fetch_size);
+		this->request_fetch_unit = new Request_Fetch_Unit_NVMe(this);
+	}
+	*/
 
 	stream_id_type Host_Interface_NVMe::Create_new_stream(IO_Flow_Priority_Class priority_class, LHA_type start_logical_sector_address, LHA_type end_logical_sector_address,
 		uint64_t submission_queue_base_address, uint64_t completion_queue_base_address)
@@ -388,6 +519,21 @@ namespace SSD_Components
 	uint16_t Host_Interface_NVMe::Get_completion_queue_depth()
 	{
 		return completion_queue_depth;
+	}
+
+	unsigned int Host_Interface_NVMe::Return_queued_requests_num()
+	{
+		return ((Input_Stream_Manager_NVMe *)input_stream_manager)->Total_requests_on_the_fly();
+	}
+
+	unsigned int Host_Interface_NVMe::Return_queued_transactions_num()
+	{
+		return ((Input_Stream_Manager_NVMe *)input_stream_manager)->Total_transactions_on_the_fly();
+	}
+
+	void Host_Interface_NVMe::Decrease_on_going_transaction_num(stream_id_type stream_id)
+	{
+		((Input_Stream_Manager_NVMe *)input_stream_manager)->Decrease_on_the_fly_write_transaction(stream_id);
 	}
 
 	void Host_Interface_NVMe::Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter)

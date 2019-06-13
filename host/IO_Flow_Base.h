@@ -16,6 +16,7 @@
 #include "PCIe_Root_Complex.h"
 #include "SATA_HBA.h"
 #include "../utils/Workload_Statistics.h"
+#include "../ssd/Stats.h"
 
 namespace Host_Components
 {
@@ -50,24 +51,28 @@ namespace Host_Components
 		~IO_Flow_Base();
 		void Start_simulation();
 		IO_Flow_Priority_Class Priority_class() { return priority_class; }
-		virtual Host_IO_Request* Generate_next_request() = 0;
+		virtual Host_IO_Reqeust* Generate_next_request() = 0;
 		virtual void NVMe_consume_io_request(Completion_Queue_Entry*);
 		Submission_Queue_Entry* NVMe_read_sqe(uint64_t address);
 		const NVMe_Queue_Pair* Get_nvme_queue_pair_info();
-		virtual void SATA_consume_io_request(Host_IO_Request* request);
+		virtual void SATA_consume_io_request(Host_IO_Reqeust* request);
 		LHA_type Get_start_lsa_on_device();
 		LHA_type Get_end_lsa_address_on_device();
 		uint32_t Get_generated_request_count();
 		uint32_t Get_serviced_request_count();//in microseconds
 		uint32_t Get_device_response_time();//in microseconds
+		uint32_t Get_device_write_response_time();
+		uint32_t Get_device_read_response_time();
 		uint32_t Get_min_device_response_time();//in microseconds
 		uint32_t Get_max_device_response_time();//in microseconds
 		uint32_t Get_end_to_end_request_delay();//in microseconds
 		uint32_t Get_min_end_to_end_request_delay();//in microseconds
 		uint32_t Get_max_end_to_end_request_delay();//in microseconds
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
+		unsigned long num_request_generated_to_sqe;
 		virtual void Get_statistics(Utils::Workload_Statistics& stats, LPA_type(*Convert_host_logical_address_to_device_address)(LHA_type lha),
 			page_status_type(*Find_NVM_subunit_access_bitmap)(LHA_type lha)) = 0;
+
 	protected:
 		uint16_t flow_id;
 		double initial_occupancy_ratio;//The initial amount of valid logical pages when pereconditioning is performed
@@ -78,7 +83,7 @@ namespace Host_Components
 		SATA_HBA* sata_hba;
 		LHA_type start_lsa_on_device, end_lsa_on_device;
 
-		void Submit_io_request(Host_IO_Request*);
+		void Submit_io_request(Host_IO_Reqeust*);
 
 		//NVMe host-to-device communication variables
 		IO_Flow_Priority_Class priority_class;
@@ -87,15 +92,17 @@ namespace Host_Components
 		uint16_t nvme_submission_queue_size;
 		uint16_t nvme_completion_queue_size;
 		std::set<uint16_t> available_command_ids;
-		std::vector<Host_IO_Request*> request_queue_in_memory;
-		std::list<Host_IO_Request*> waiting_requests;//The I/O requests that are still waiting to be enqueued in the I/O queue (the I/O queue is full)
-		std::unordered_map<sim_time_type, Host_IO_Request*> nvme_software_request_queue;//The I/O requests that are enqueued in the I/O queue of the SSD device
+		std::vector<Host_IO_Reqeust*> request_queue_in_memory;
+		std::list<Host_IO_Reqeust*> waiting_requests;//The I/O requests that are still waiting to be enqueued in the I/O queue (the I/O queue is full)
+		std::unordered_map<sim_time_type, Host_IO_Reqeust*> nvme_software_request_queue;//The I/O requests that are enqueued in the I/O queue of the SSD device
 		void NVMe_update_and_submit_completion_queue_tail();
 
 		//Variables used to collect statistics
 		unsigned int STAT_generated_request_count, STAT_generated_read_request_count, STAT_generated_write_request_count;
 		unsigned int STAT_ignored_request_count;
 		unsigned int STAT_serviced_request_count, STAT_serviced_read_request_count, STAT_serviced_write_request_count;
+		unsigned int STAT_submitted_request_count;
+		unsigned int num_of_nvme_request_waiting;
 		sim_time_type STAT_sum_device_response_time, STAT_sum_device_response_time_read, STAT_sum_device_response_time_write;
 		sim_time_type STAT_min_device_response_time, STAT_min_device_response_time_read, STAT_min_device_response_time_write;
 		sim_time_type STAT_max_device_response_time, STAT_max_device_response_time_read, STAT_max_device_response_time_write;
@@ -114,9 +121,16 @@ namespace Host_Components
 		std::ofstream log_file;
 		uint32_t Get_device_response_time_short_term();//in microseconds
 		uint32_t Get_end_to_end_request_delay_short_term();//in microseconds
+		/*ZWH*/
+		uint32_t Get_device_write_response_time_short_term();
+		uint32_t Get_device_read_response_time_short_term();
+		/*ZWH*/
 		sim_time_type STAT_sum_device_response_time_short_term, STAT_sum_request_delay_short_term;
+		sim_time_type STAT_sum_device_write_response_time_short_term, STAT_sum_device_read_response_time_short_term;
 		unsigned int STAT_serviced_request_count_short_term;
-
+		unsigned int STAT_serviced_write_request_count_short_term, STAT_serviced_read_request_count_short_term;
+		unsigned int STAT_triggered_slc_write_short_term, STAT_triggered_tlc_write_short_term;
+		unsigned int STAT_last_triggered_slc_write, STAT_last_triggered_tlc_write;
 	};
 }
 

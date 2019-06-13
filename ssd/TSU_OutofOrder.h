@@ -32,6 +32,7 @@ namespace SSD_Components
 		void Prepare_for_transaction_submit();
 		void Submit_transaction(NVM_Transaction_Flash* transaction);
 		void Schedule();
+		void Serve_transactions();
 
 		void Start_simulation();
 		void Validate_simulation_config();
@@ -45,10 +46,14 @@ namespace SSD_Components
 		Flash_Transaction_Queue** GCEraseTRQueue;
 		Flash_Transaction_Queue** MappingReadTRQueue;
 		Flash_Transaction_Queue** MappingWriteTRQueue;
+		bool queue_flag;
 
+		bool is_a_full_page_set(std::list<NVM_Transaction_Flash*> transaction_receive_slots, int numOfPagesInOneSet, bool page_set_flag);
 		bool service_read_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_write_transaction(NVM::FlashMemory::Flash_Chip* chip);
 		bool service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip);
+		void print_queue_depth();
+		bool queues_are_empty();
 	};
 }
 

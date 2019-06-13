@@ -27,9 +27,23 @@ namespace NVM
 				sim_time_type *readLatency, sim_time_type *programLatency, sim_time_type eraseLatency,
 				sim_time_type suspendProgramLatency, sim_time_type suspendEraseLatency,
 				sim_time_type commProtocolDelayRead = 20, sim_time_type commProtocolDelayWrite = 0, sim_time_type commProtocolDelayErase = 0);
+			Flash_Chip(const sim_object_id_type&, flash_channel_ID_type channelID, flash_chip_ID_type localChipID,
+				Flash_Technology_Type flash_technology, Flash_Program_Type program_type,
+				unsigned int dieNo, unsigned int PlaneNoPerDie, unsigned int Block_no_per_plane, unsigned int Page_no_per_block,
+				sim_time_type *readLatency, sim_time_type *programLatency, sim_time_type eraseLatency,
+				sim_time_type suspendProgramLatency, sim_time_type suspendEraseLatency,
+				sim_time_type commProtocolDelayRead = 20, sim_time_type commProtocolDelayWrite = 0, sim_time_type commProtocolDelayErase = 0);
+			Flash_Chip(const sim_object_id_type&, flash_channel_ID_type channelID, flash_chip_ID_type localChipID,
+				Flash_Technology_Type flash_technology, Flash_Program_Type program_type, unsigned int slc_percentage,
+				unsigned int dieNo, unsigned int PlaneNoPerDie, unsigned int Block_no_per_plane, unsigned int Page_no_per_block,
+				sim_time_type *readLatency, sim_time_type *programLatency, sim_time_type eraseLatency,
+				sim_time_type suspendProgramLatency, sim_time_type suspendEraseLatency,
+				sim_time_type commProtocolDelayRead = 20, sim_time_type commProtocolDelayWrite = 0, sim_time_type commProtocolDelayErase = 0);
 			~Flash_Chip();
 			flash_channel_ID_type ChannelID;
 			flash_chip_ID_type ChipID;         //Flashchip position in its related channel
+			Flash_Program_Type flash_program_method = Flash_Program_Type::PAGEBYPAGE;     //*ZWH*
+			Die** Dies; //moved from private parameter to here
 
 			void StartCMDXfer()
 			{
@@ -106,6 +120,11 @@ namespace NVM
 				case CMD_PROGRAM_PAGE_COPYBACK:
 				case CMD_PROGRAM_PAGE_COPYBACK_MULTIPLANE:
 					return _programLatency[latencyType] + _RBSignalDelayWrite;
+				case CMD_PROGRAM_ONESHOT:
+					return _programLatency[2] + _RBSignalDelayWrite;
+				case CMD_PROGRAM_SLC:
+					//std::cout << "CMD_PROGRAM_SLC is triggered..." << std::endl;
+					return _slc_programLatency + _RBSignalDelayWrite;
 				case CMD_ERASE_BLOCK:
 				case CMD_ERASE_BLOCK_MULTIPLANE:
 					return _eraseLatency + _RBSignalDelayErase;
@@ -113,22 +132,73 @@ namespace NVM
 					throw std::invalid_argument("Unsupported command for flash chip.");
 				}
 			}
+			//*ZWH*
+			Flash_Technology_Type Get_Flash_Type_of_Block(flash_block_ID_type blockID, flash_plane_ID_type planeID, flash_die_ID_type dieID)
+			{
+				return Dies[dieID]->Get_Flash_Type_of_Block(blockID, planeID);
+			}
+			sim_time_type Get_command_execution_latency(command_code_type CMDCode, flash_page_ID_type pageID, flash_block_ID_type blockID, flash_plane_ID_type planeID, flash_die_ID_type dieID)
+			{
+				Flash_Technology_Type flashtype = Get_Flash_Type_of_Block(blockID, planeID, dieID);
+				int latencyType = 0;
+				if (flashtype == Flash_Technology_Type::MLC)
+				{
+					latencyType = pageID % 2;
+				}
+				else if (flashtype == Flash_Technology_Type::TLC)
+				{
+					//From: Yaakobi et al., "Characterization and Error-Correcting Codes for TLC Flash Memories", ICNC 2012
+					latencyType = (pageID <= 5) ? 0 : ((pageID <= 7) ? 1 : (((pageID - 8) >> 1) % 3));;
+				}
+
+				switch (CMDCode)
+				{
+				case CMD_READ_PAGE:
+				case CMD_READ_PAGE_MULTIPLANE:
+				case CMD_READ_PAGE_COPYBACK:
+				case CMD_READ_PAGE_COPYBACK_MULTIPLANE:
+					return _readLatency[latencyType] + _RBSignalDelayRead;
+				case CMD_PROGRAM_PAGE:
+				case CMD_PROGRAM_PAGE_MULTIPLANE:
+				case CMD_PROGRAM_PAGE_COPYBACK:
+				case CMD_PROGRAM_PAGE_COPYBACK_MULTIPLANE:
+					return _programLatency[latencyType] + _RBSignalDelayWrite;
+				case CMD_PROGRAM_ONESHOT:
+					return _programLatency[2] + _RBSignalDelayWrite;
+				case CMD_PROGRAM_SLC:
+					//std::cout << "CMD_PROGRAM_SLC is triggered..." << std::endl;
+					return _slc_programLatency + _RBSignalDelayWrite;
+				case CMD_ERASE_BLOCK:
+				case CMD_ERASE_BLOCK_MULTIPLANE:
+					return _eraseLatency + _RBSignalDelayErase;
+				default:
+					throw std::invalid_argument("Unsupported command for flash chip.");
+				}
+			}
+			//*ZWH*
 			void Suspend(flash_die_ID_type dieID);
 			void Resume(flash_die_ID_type dieID);
 			sim_time_type GetSuspendProgramTime();
 			sim_time_type GetSuspendEraseTime();
 			void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 			LPA_type Get_metadata(flash_die_ID_type die_id, flash_plane_ID_type plane_id, flash_block_ID_type block_id, flash_page_ID_type page_id);//A simplification to decrease the complexity of GC execution! The GC unit may need to know the metadata of a page to decide if a page is valid or invalid. 
+			void Write_metadata_chip(LPA_type lpa, flash_die_ID_type die_id, flash_plane_ID_type plane_id, flash_block_ID_type block_id, flash_page_ID_type page_id);
 		private:
 			Flash_Technology_Type flash_technology;
 			Internal_Status status;
 			unsigned int idleDieNo;
-			Die** Dies;
+			
 			unsigned int die_no;
 			unsigned int plane_no_in_die;                  //indicate how many planes in a die
 			unsigned int block_no_in_plane;                //indicate how many blocks in a plane
 			unsigned int page_no_per_block;                 //indicate how many pages in a block
+			//*ZWH*
+			unsigned int percentage_of_slc_blocks_per_plane;
+			unsigned int slc_page_no_per_block;				//indicate how many pages in a slc block
+			unsigned int slc_block_no_per_plane;			//indicate how many slc blocks in a plane
+			//*ZWH*
 			sim_time_type *_readLatency, *_programLatency, _eraseLatency;
+			sim_time_type _slc_programLatency = 500000;
 			sim_time_type _suspendProgramLatency, _suspendEraseLatency;
 			sim_time_type _RBSignalDelayRead, _RBSignalDelayWrite, _RBSignalDelayErase;
 			sim_time_type lastTransferStart;

@@ -10,6 +10,7 @@
 #include "Data_Cache_Manager_Base.h"
 #include <stdint.h>
 #include <cstring>
+#include "NVM_Firmware.h"
 
 namespace Host_Components
 {
@@ -26,6 +27,7 @@ namespace SSD_Components
 	if(REQ->Transaction_list.size() != 0) PRINT_ERROR("Deleting an unhandled user requests in the host interface! MQSim thinks something is going wrong!")\
 	delete REQ;
 
+	class NVM_Firmware;
 	class Data_Cache_Manager_Base;
 	class Host_Interface_Base;
 
@@ -100,15 +102,21 @@ namespace SSD_Components
 	public:
 		Host_Interface_Base(const sim_object_id_type& id, HostInterface_Types type, LHA_type max_logical_sector_address, 
 			unsigned int sectors_per_page, Data_Cache_Manager_Base* cache);
+		/*
+		Host_Interface_Base(const sim_object_id_type& id, HostInterface_Types type, LHA_type max_logical_sector_address, 
+			unsigned int sectors_per_page, Data_Cache_Manager_Base* cache, GC_and_WL_Unit_Page_Level* gc_unit);
+			*/
 		virtual ~Host_Interface_Base();
 		void Setup_triggers();
 		void Validate_simulation_config();
+		NVM_Firmware* nvm_firmware;
 
 		typedef void(*UserRequestArrivedSignalHandlerType) (User_Request*);
 		void Connect_to_user_request_arrived_signal(UserRequestArrivedSignalHandlerType function)
 		{
 			connected_user_request_arrived_signal_handlers.push_back(function);
 		}
+		unsigned int request_count_recieved_in_host_interface = 0;
 
 		void Consume_pcie_message(Host_Components::PCIe_Message* message)
 		{
@@ -117,6 +125,11 @@ namespace SSD_Components
 			else
 				request_fetch_unit->Process_pcie_write_message(message->Address, message->Payload, message->Payload_size);
 			delete message;
+			request_count_recieved_in_host_interface++;
+			/*
+			if(request_count_recieved_in_host_interface % 100000 == 0)
+				std::cout << "                               " << request_count_recieved_in_host_interface << " : requests are recieved in host interface" << std::endl;
+				*/
 		}
 		void Send_read_message_to_host(uint64_t addresss, unsigned int request_read_data_size);
 		void Send_write_message_to_host(uint64_t addresss, void* message, unsigned int message_size);
@@ -125,6 +138,7 @@ namespace SSD_Components
 		void Attach_to_device(Host_Components::PCIe_Switch* pcie_switch);
 		LHA_type Get_max_logical_sector_address();
 		unsigned int Get_no_of_LHAs_in_an_NVM_write_unit();
+		void Go_check_data_migration();
 	protected:
 		HostInterface_Types type;
 		LHA_type max_logical_sector_address;
@@ -133,10 +147,18 @@ namespace SSD_Components
 		Input_Stream_Manager_Base* input_stream_manager;
 		Request_Fetch_Unit_Base* request_fetch_unit;
 		Data_Cache_Manager_Base* cache;
+		//GC_and_WL_Unit_Page_Level* gc_unit;
 		std::vector<UserRequestArrivedSignalHandlerType> connected_user_request_arrived_signal_handlers;
 
 		void broadcast_user_request_arrival_signal(User_Request* user_request)
 		{
+			/*
+			if(user_request->ID == "620568")
+			{
+				std::cout << "Broadcasting user request " << user_request->ID << "arrival signal" << std::endl;
+				std::cin.get();
+			}
+			*/
 			for (std::vector<UserRequestArrivedSignalHandlerType>::iterator it = connected_user_request_arrived_signal_handlers.begin();
 				it != connected_user_request_arrived_signal_handlers.end(); it++)
 				(*it)(user_request);

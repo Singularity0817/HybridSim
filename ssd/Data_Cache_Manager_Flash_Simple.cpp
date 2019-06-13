@@ -4,6 +4,8 @@
 #include "NVM_Transaction_Flash_RD.h"
 #include "NVM_Transaction_Flash_WR.h"
 #include "FTL.h"
+#include "Host_Interface_Base.h"
+#include "Host_Interface_NVMe.h"
 
 namespace SSD_Components
 {
@@ -20,6 +22,9 @@ namespace SSD_Components
 		waiting_user_requests_queue_for_dram_free_slot = new std::list<User_Request*>[stream_count];
 		this->back_pressure_buffer_depth = 0;
 		bloom_filter = new std::set<LPA_type>[stream_count];
+		num_transactions_serviced = 0;
+		num_r_transactions_serviced = 0;
+		num_w_transactions_serviced = 0;
 	}
 
 	Data_Cache_Manager_Flash_Simple::~Data_Cache_Manager_Flash_Simple()
@@ -53,7 +58,26 @@ namespace SSD_Components
 	void Data_Cache_Manager_Flash_Simple::process_new_user_request(User_Request* user_request)
 	{
 		if (user_request->Transaction_list.size() == 0)//This condition shouldn't happen, but we check it
+		{
+			std::cout << "A REQUEST WITH ZERO SIZE IS RECIEVED..." << std::endl;
+			std::cout << "    ID: " << user_request->ID << ", sizeinbyte: " << user_request->Size_in_byte << ", sizeinsector: " << user_request->SizeInSectors << std::endl;
 			return;
+		}
+		else if (user_request->Transaction_list.size() == 1)
+		{
+			user_request->isHot = true;
+		}
+		else
+		{
+			user_request->isHot = false;
+		}
+		/*
+		if (user_request->ID == "4144728")
+		{
+			std::cout << "Processing request in cache manager " << user_request->ID << std::endl;
+			std::cin.get();
+		}
+		*/
 		
 		if (user_request->Type == UserRequestType::READ)
 		{
@@ -225,13 +249,23 @@ namespace SSD_Components
 
 		if (transaction->Source == Transaction_Source_Type::USERIO)
 			_my_instance->broadcast_user_memory_transaction_serviced_signal(transaction);
+
+		if (transaction->Stream_id != transaction->UserIORequest->Stream_id)
+		{
+			std::cout << "Something wrong happended, the stream_id is collapse " << transaction->UserIORequest->ID << ": " << transaction->Stream_id << ", " << transaction->UserIORequest->Stream_id << std::endl;
+			std::cin.get();
+		}
+		
 		/* This is an update read (a read that is generated for a write request that partially updates page data).
 		*  An update read transaction is issued in Address Mapping Unit, but is consumed in data cache manager.*/
 		if (transaction->Type == Transaction_Type::READ)
 		{
+			//num_r_transactions_serviced++;
 			if (((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite != NULL)
 			{
 				((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite->RelatedRead = NULL;
+				//std::cout << "LPA: " << transaction->LPA << " is read at " << Simulator->Time() << std::endl;
+				((FTL*)(_my_instance->nvm_firmware))->TSU->Serve_transactions();
 				return;
 			}
 			switch (Data_Cache_Manager_Flash_Simple::caching_mode_per_input_stream[transaction->Stream_id])
@@ -248,10 +282,13 @@ namespace SSD_Components
 		}
 		else//This is a write request
 		{
+			//num_w_transactions_serviced++;
 			switch (Data_Cache_Manager_Flash_Simple::caching_mode_per_input_stream[transaction->Stream_id])
 			{
 			case Caching_Mode::TURNED_OFF:
 				transaction->UserIORequest->Transaction_list.remove(transaction);
+				((Host_Interface_NVMe*)_my_instance->host_interface)->Decrease_on_going_transaction_num(transaction->Stream_id);
+				//std::cout << "LPA: " << transaction->LPA << " is programmed by chip " << Simulator->Time() << " cache manager" << std::endl;
 				if (_my_instance->is_user_request_finished(transaction->UserIORequest))
 					_my_instance->broadcast_user_request_serviced_signal(transaction->UserIORequest);
 				break;

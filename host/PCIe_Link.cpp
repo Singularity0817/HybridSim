@@ -13,6 +13,8 @@ namespace Host_Components
 		tlp_header_size(tlp_header_size), tlp_max_payload_size(tlp_max_payload_size), dllp_ovehread(dllp_ovehread), ph_overhead(ph_overhead)
 	{
 		packet_overhead = ph_overhead + dllp_ovehread + tlp_header_size;
+		num_of_massages_to_be_transfer = 0;
+		num_of_massages_transfer_to_ssd = 0;
 	}
 
 	void PCIe_Link::Set_root_complex(PCIe_Root_Complex* root_complex)
@@ -37,6 +39,11 @@ namespace Host_Components
 			break;
 		case PCIe_Destination_Type::DEVICE://Message from Host to the SSD device
 			Message_buffer_toward_ssd_device.push(message);
+			num_of_massages_to_be_transfer++;
+			/*
+			if (num_of_massages_to_be_transfer % 100000 == 0)
+				std::cout << num_of_massages_to_be_transfer << " massages are registerred by PCIe Link..." << std::endl;
+				*/
 			if (Message_buffer_toward_ssd_device.size() > 1)
 				return;
 			Simulator->Register_sim_event(Simulator->Time() + estimate_transfer_time(message), this, (void*)(intptr_t)PCIe_Destination_Type::DEVICE, static_cast<int>(PCIe_Link_Event_Type::DELIVER));
@@ -67,6 +74,11 @@ namespace Host_Components
 		case PCIe_Destination_Type::DEVICE:
 			message = Message_buffer_toward_ssd_device.front();
 			Message_buffer_toward_ssd_device.pop();
+			num_of_massages_transfer_to_ssd++;
+			/*
+			if (num_of_massages_transfer_to_ssd % 100000 == 0)
+				std::cout << num_of_massages_transfer_to_ssd << " have transferred through PCIe Link..." << std::endl;
+				*/
 			pcie_switch->Deliver_to_device(message);
 			if (Message_buffer_toward_ssd_device.size() > 0)
 				Simulator->Register_sim_event(Simulator->Time() + estimate_transfer_time(Message_buffer_toward_ssd_device.front()),

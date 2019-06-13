@@ -28,6 +28,7 @@ namespace SSD_Components
 		unsigned int capacity_in_bytes, capacity_in_pages;
 		unsigned int sector_no_per_page;
 		Data_Cache_Flash* data_cache;
+		unsigned int num_transactions_serviced, num_r_transactions_serviced, num_w_transactions_serviced;
 
 		void process_new_user_request(User_Request* user_request);
 		void write_to_destage_buffer(User_Request* user_request);//Used in the WRITE_CACHE and WRITE_READ_CACHE modes in which the DRAM space is used as a destage buffer

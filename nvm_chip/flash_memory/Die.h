@@ -14,6 +14,7 @@ namespace NVM
 		{
 		public:
 			Die(unsigned int PlanesNoPerDie, unsigned int BlocksNoPerPlane, unsigned int PagesNoPerBlock);
+			Die(unsigned int PlanesNoPerDie, unsigned int BlocksNoPerPlane, unsigned int PagesNoPerBlock, unsigned int SlcBlocksNoPerPlane, unsigned int PagesNoPerSlcBlock);
 			~Die();
 			Plane** Planes;
 			unsigned int Plane_no;
@@ -25,6 +26,11 @@ namespace NVM
 			bool Suspended;
 
 			sim_time_type STAT_TotalProgramTime, STAT_TotalReadTime, STAT_TotalEraseTime, STAT_TotalXferTime;
+
+			Flash_Technology_Type Get_Flash_Type_of_Block(flash_block_ID_type blockID, flash_plane_ID_type planeID)
+			{
+				return Planes[planeID]->Get_Flash_Type_of_Block(blockID);
+			}
 		};
 	}
 }

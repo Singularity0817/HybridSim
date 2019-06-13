@@ -40,6 +40,12 @@ namespace SSD_Components
 			unsigned int ChannelCount, unsigned int chip_no_per_channel, unsigned int DieNoPerChip, unsigned int PlaneNoPerDie,
 			unsigned int Block_no_per_plane, unsigned int Page_no_per_block, unsigned int SectorsPerPage, unsigned int PageSizeInBytes,
 			double Overprovisioning_ratio, CMT_Sharing_Mode sharing_mode = CMT_Sharing_Mode::SHARED, bool fold_large_addresses = true);
+		Address_Mapping_Unit_Base(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI* FlashController, Flash_Block_Manager_Base* block_manager,
+			bool ideal_mapping_table, unsigned int no_of_input_streams,
+			unsigned int ChannelCount, unsigned int chip_no_per_channel, unsigned int DieNoPerChip, unsigned int PlaneNoPerDie,
+			unsigned int Block_no_per_plane, unsigned int Page_no_per_block, unsigned int SectorsPerPage, unsigned int PageSizeInBytes,
+			unsigned int page_no_per_slc_block, unsigned int slc_block_no_per_plane,
+			double Overprovisioning_ratio, CMT_Sharing_Mode sharing_mode = CMT_Sharing_Mode::SHARED, bool fold_large_addresses = true);
 		virtual ~Address_Mapping_Unit_Base();
 
 		//Functions used for preconditioning
@@ -79,8 +85,8 @@ namespace SSD_Components
 		virtual void Remove_barrier_for_accessing_lpa(const stream_id_type stream_id, const LPA_type lpa) = 0; //Removes the barrier that has already been set for accessing an LPA (i.e., the GC_and_WL_Unit_Base unit successfully finished relocating LPA from one physical location to another physical location).
 		virtual void Remove_barrier_for_accessing_mvpn(const stream_id_type stream_id, const MVPN_type mvpn) = 0; //Removes the barrier that has already been set for accessing an MVPN (i.e., the GC_and_WL_Unit_Base unit successfully finished relocating MVPN from one physical location to another physical location).
 		virtual void Start_servicing_writes_for_overfull_plane(const NVM::FlashMemory::Physical_Page_Address plane_address) = 0;//This function is invoked when GC execution is finished on a plane and the plane has enough number of free pages to service writes
-	protected:
 		FTL* ftl;
+	protected:
 		NVM_PHY_ONFI* flash_controller;
 		Flash_Block_Manager_Base* block_manager;
 		CMT_Sharing_Mode sharing_mode;
@@ -97,6 +103,9 @@ namespace SSD_Components
 		unsigned int pages_no_per_block;
 		unsigned int sector_no_per_page;
 		unsigned int page_size_in_byte;
+		unsigned int page_no_per_slc_block;
+		unsigned int slc_block_no_per_plane;
+		unsigned int slc_page_no_per_plane;
 		unsigned int total_physical_pages_no = 0;
 		unsigned int page_no_per_channel = 0;
 		unsigned int page_no_per_chip = 0;

@@ -1,5 +1,6 @@
 #include "Host_Interface_Base.h"
 #include "Data_Cache_Manager_Base.h"
+#include "FTL.h"
 
 namespace SSD_Components
 {
@@ -33,6 +34,15 @@ namespace SSD_Components
 	{
 		_my_instance = this;
 	}
+	/*
+	Host_Interface_Base::Host_Interface_Base(const sim_object_id_type& id, HostInterface_Types type, LHA_type max_logical_sector_address, unsigned int sectors_per_page, 
+		Data_Cache_Manager_Base* cache, GC_and_WL_Unit_Page_Level* gc_unit)
+		: MQSimEngine::Sim_Object(id), type(type), max_logical_sector_address(max_logical_sector_address), 
+		sectors_per_page(sectors_per_page), cache(cache), gc_unit(gc_unit)
+	{
+		_my_instance = this;
+	}
+	*/
 	
 	Host_Interface_Base::~Host_Interface_Base()
 	{
@@ -79,6 +89,10 @@ namespace SSD_Components
 	unsigned int Host_Interface_Base::Get_no_of_LHAs_in_an_NVM_write_unit()
 	{
 		return sectors_per_page;
+	}
+	void Host_Interface_Base::Go_check_data_migration()
+	{
+		this->cache->Request_data_migration_check();
 	}
 
 
