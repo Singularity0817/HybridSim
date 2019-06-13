@@ -30,6 +30,53 @@ namespace SSD_Components
 			block_pool_gc_threshold = max_ongoing_gc_reqs_per_plane;
 	}
 
+	GC_and_WL_Unit_Base::GC_and_WL_Unit_Base(const sim_object_id_type& id,
+		Address_Mapping_Unit_Base* address_mapping_unit, Flash_Block_Manager_Base* block_manager, TSU_Base* tsu, NVM_PHY_ONFI* flash_controller,
+		GC_Block_Selection_Policy_Type block_selection_policy, double gc_threshold, bool preemptible_gc_enabled, double gc_hard_threshold, double slc_gc_threshold, double tlc_gc_threshold,
+		unsigned int channel_count, unsigned int chip_no_per_channel, unsigned int die_no_per_chip, unsigned int plane_no_per_die,
+		unsigned int block_no_per_plane, unsigned int page_no_per_block, unsigned int sector_no_per_page, unsigned int slc_block_no_per_plane, unsigned int page_no_per_slc_block,
+		bool use_copyback, double rho, unsigned int max_ongoing_gc_reqs_per_plane, bool dynamic_wearleveling_enabled, bool static_wearleveling_enabled, unsigned int static_wearleveling_threshold, int seed) :
+		Sim_Object(id), address_mapping_unit(address_mapping_unit), block_manager(block_manager), tsu(tsu), flash_controller(flash_controller), force_gc(false),
+		block_selection_policy(block_selection_policy), gc_threshold(gc_threshold),	use_copyback(use_copyback), 
+		preemptible_gc_enabled(preemptible_gc_enabled), gc_hard_threshold(gc_hard_threshold), slc_gc_threshold(slc_gc_threshold), tlc_gc_threshold(tlc_gc_threshold),
+		random_generator(seed), max_ongoing_gc_reqs_per_plane(max_ongoing_gc_reqs_per_plane),
+		channel_count(channel_count), chip_no_per_channel(chip_no_per_channel), die_no_per_chip(die_no_per_chip), plane_no_per_die(plane_no_per_die),
+		block_no_per_plane(block_no_per_plane), pages_no_per_block(page_no_per_block), sector_no_per_page(sector_no_per_page), slc_block_no_per_plane(slc_block_no_per_plane), pages_no_per_slc_block(page_no_per_slc_block),
+		dynamic_wearleveling_enabled(dynamic_wearleveling_enabled), static_wearleveling_enabled(static_wearleveling_enabled), static_wearleveling_threshold(static_wearleveling_threshold)
+	{
+		//*ZWH*
+		tlc_block_no_per_plane = block_no_per_plane - slc_block_no_per_plane;
+		pages_no_per_tlc_block = pages_no_per_block;
+		total_plane_num = channel_count * chip_no_per_channel * die_no_per_chip * plane_no_per_die;
+		plane_num_doing_data_migration = 0;
+		data_migration_flag = false;
+		//*ZWH*
+		_my_instance = this;
+		block_pool_gc_threshold = (unsigned int)(gc_threshold * (double)block_no_per_plane);
+		if (block_pool_gc_threshold < 1)
+			block_pool_gc_threshold = 1;
+		block_pool_gc_hard_threshold = (unsigned int)(gc_hard_threshold * (double)block_no_per_plane);
+		if (block_pool_gc_hard_threshold < 1)
+			block_pool_gc_hard_threshold = 1;
+		random_pp_threshold = (unsigned int)(rho * pages_no_per_block);
+		if (block_pool_gc_threshold < max_ongoing_gc_reqs_per_plane)
+			block_pool_gc_threshold = max_ongoing_gc_reqs_per_plane;
+		//*ZWH*
+		if (slc_block_no_per_plane == 0)
+			slc_block_pool_gc_threshold = 0;
+		else{
+			slc_block_pool_gc_threshold = (unsigned int)(slc_gc_threshold * (double)slc_block_no_per_plane);
+			if (slc_block_pool_gc_threshold < 1)
+				slc_block_pool_gc_threshold = 1;
+		}
+		tlc_block_pool_gc_threshold = (unsigned int)(tlc_gc_threshold * (double)tlc_block_no_per_plane);
+		if (tlc_block_pool_gc_threshold < max_ongoing_gc_reqs_per_plane)
+			tlc_block_pool_gc_threshold = max_ongoing_gc_reqs_per_plane;
+		std::cout << "slc_block_pool_gc_threshold: " << slc_block_pool_gc_threshold << std::endl;
+		std::cout << "tlc_block_pool_gc_threshold: " << tlc_block_pool_gc_threshold << std::endl;
+		//*ZWH*
+	}
+
 	void GC_and_WL_Unit_Base::Setup_triggers()
 	{
 		Sim_Object::Setup_triggers();
@@ -49,9 +96,11 @@ namespace SSD_Components
 			{
 			case Transaction_Type::READ:
 				_my_instance->block_manager->Read_transaction_serviced(transaction->Address);
+				//std::cout << "LPA: " << transaction->LPA << " is read by chip " << Simulator->Time() << std::endl;
 				break;
 			case Transaction_Type::WRITE:
 				_my_instance->block_manager->Program_transaction_serviced(transaction->Address);
+				//std::cout << "LPA: " << transaction->LPA << " is programmed by chip " << Simulator->Time() << std::endl;
 				break;
 			default:
 				PRINT_ERROR("Unexpected situation in the GC_and_WL_Unit_Base function!")
@@ -59,9 +108,9 @@ namespace SSD_Components
 			if (_my_instance->block_manager->Block_has_ongoing_gc_wl(transaction->Address))
 				if (_my_instance->block_manager->Can_execute_gc_wl(transaction->Address))
 				{
+					//std::cout << "Entering_secrect_zone_for: " << transaction->Address.ChannelID << ":" << transaction->Address.ChipID << ":" << transaction->Address.DieID << ":" << transaction->Address.PlaneID << ":" << transaction->Address.BlockID << std::endl;
 					NVM::FlashMemory::Physical_Page_Address gc_wl_candidate_address(transaction->Address);
 					Block_Pool_Slot_Type* block = &pbke->Blocks[transaction->Address.BlockID];
-					Stats::Total_gc_executions++;
 					_my_instance->tsu->Prepare_for_transaction_submit();
 					NVM_Transaction_Flash_ER* gc_wl_erase_tr = new NVM_Transaction_Flash_ER(Transaction_Source_Type::GC_WL, block->Stream_id, gc_wl_candidate_address);
 					if (block->Current_page_write_index - block->Invalid_page_count > 0)//If there are some valid pages in block, then prepare flash transactions for page movement
@@ -98,6 +147,7 @@ namespace SSD_Components
 					}
 					block->Erase_transaction = gc_wl_erase_tr;
 					_my_instance->tsu->Schedule();
+					//std::cout << "  Exit function handle_transaction_serviced_signal_from_PHY in GC_and_WL_Unit_Base.cpp" << std::endl;
 				}
 			return;
 		}
@@ -123,7 +173,7 @@ namespace SSD_Components
 					_my_instance->tsu->Schedule();
 				}
 				else
-					PRINT_ERROR("Inconsistency found when moving a page for GC/WL!")
+					PRINT_ERROR("Inconsistency found when moving a page for GC/WL 1!")
 			}
 			else
 			{
@@ -139,11 +189,21 @@ namespace SSD_Components
 					_my_instance->tsu->Schedule();
 				}
 				else
-					PRINT_ERROR("Inconsistency found when moving a page for GC/WL!")
+				{
+					std::cout << "Inconsistency found when moving a page for GC/WL " << "LPA: " << transaction->LPA << ", PPA: " << transaction->PPA << "|" << ppa << std::endl;
+					exit(1);
+					//PRINT_ERROR("Inconsistency found when moving a page for GC/WL 2! ")
+				}
 			}
 			break;
 		}
 		case Transaction_Type::WRITE:
+			/*
+			if (transaction->LPA == 2846734)
+			{
+				std::cout << "Target LPA is moved to target position... " << transaction->LPA << std::endl;
+			}
+			*/
 			if (pbke->Blocks[((NVM_Transaction_Flash_WR*)transaction)->RelatedErase->Address.BlockID].Holds_mapping_data)
 			{
 				_my_instance->address_mapping_unit->Remove_barrier_for_accessing_mvpn(transaction->Stream_id, (MVPN_type)transaction->LPA);
@@ -154,10 +214,15 @@ namespace SSD_Components
 				_my_instance->address_mapping_unit->Remove_barrier_for_accessing_lpa(transaction->Stream_id, transaction->LPA);
 				DEBUG(Simulator->Time() << ": LPA=" << (MVPN_type)transaction->LPA << " unlocked!!");
 			}
+			_my_instance->block_manager->Program_transaction_serviced(transaction->Address);
 			pbke->Blocks[((NVM_Transaction_Flash_WR*)transaction)->RelatedErase->Address.BlockID].Erase_transaction->Page_movement_activities.remove((NVM_Transaction_Flash_WR*)transaction);
 			break;
 		case Transaction_Type::ERASE:
-			pbke->Ongoing_erase_operations.erase(pbke->Ongoing_erase_operations.find(transaction->Address.BlockID));
+			//std::cout << "erase operation back to GC_and_WL_Unit_Base" << std::endl;
+			if (pbke->Blocks[transaction->Address.BlockID].Flash_type == Flash_Technology_Type::SLC)
+				pbke->Ongoing_slc_erase_operations.erase(pbke->Ongoing_slc_erase_operations.find(transaction->Address.BlockID));
+			else
+				pbke->Ongoing_erase_operations.erase(pbke->Ongoing_erase_operations.find(transaction->Address.BlockID));
 			_my_instance->block_manager->Add_erased_block_to_pool(transaction->Address);
 			_my_instance->block_manager->GC_WL_finished(transaction->Address);
 			if (_my_instance->check_static_wl_required(transaction->Address))
@@ -165,7 +230,11 @@ namespace SSD_Components
 			_my_instance->address_mapping_unit->Start_servicing_writes_for_overfull_plane(transaction->Address);//Must be inovked after above statements since it may lead to flash page consumption for waiting program transactions
 
 			if (_my_instance->Stop_servicing_writes(transaction->Address))
-				_my_instance->Check_gc_required(pbke->Get_free_block_pool_size(), transaction->Address);
+			{
+				std::cout << "Something happened in GC_andWL_Unit_Base.cpp handle_transaction_serviced_signal_from..." << std::endl;
+				//_my_instance->Check_gc_required(pbke->Get_free_block_pool_size(), transaction->Address);
+				_my_instance->Check_tlc_gc_required(pbke->Get_free_block_pool_size(), transaction->Address);
+			}
 			break;
 		}
 	}
@@ -174,7 +243,12 @@ namespace SSD_Components
 
 	void GC_and_WL_Unit_Base::Validate_simulation_config() {}
 
-	void GC_and_WL_Unit_Base::Execute_simulator_event(MQSimEngine::Sim_Event* ev) {}
+	void GC_and_WL_Unit_Base::Execute_simulator_event(MQSimEngine::Sim_Event* ev) 
+	{
+		//std::cout << "IDLE_Check***" << std::endl;
+		if (Simulator->Time() - Simulator->Last_request_triggerred_time >= dm_interval)
+			Try_check_data_migration_required();
+	}
 
 	GC_Block_Selection_Policy_Type GC_and_WL_Unit_Base::Get_gc_policy()
 	{
@@ -201,6 +275,14 @@ namespace SSD_Components
 		else return block_pool_gc_threshold;*/
 	}
 
+	unsigned int GC_and_WL_Unit_Base::Get_minimum_number_of_free_tlc_pages_before_GC()
+	{
+		return tlc_block_pool_gc_threshold;
+		/*if (preemptible_gc_enabled)
+			return block_pool_gc_hard_threshold;
+		else return block_pool_gc_threshold;*/
+	}
+
 	bool GC_and_WL_Unit_Base::Use_dynamic_wearleveling()
 	{
 		return dynamic_wearleveling_enabled;
@@ -214,7 +296,45 @@ namespace SSD_Components
 	bool GC_and_WL_Unit_Base::Stop_servicing_writes(const NVM::FlashMemory::Physical_Page_Address& plane_address)
 	{
 		PlaneBookKeepingType* pbke = &(_my_instance->block_manager->plane_manager[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID]);
-		return block_manager->Get_pool_size(plane_address) < max_ongoing_gc_reqs_per_plane;
+		return block_manager->Get_tlc_pool_size(plane_address) < max_ongoing_gc_reqs_per_plane;
+	}
+	bool GC_and_WL_Unit_Base::Stop_servicing_slc_writes(const NVM::FlashMemory::Physical_Page_Address& plane_address)
+	{
+		//limit slc writes to only die 0, simulating the scene that only few planes provide slc writes.
+		/*
+		if(plane_address.ChipID != 0 && plane_address.ChipID != 1)
+		{
+			return true;
+		}
+		*/
+		if (Is_doing_data_migration(plane_address) == true)
+		{
+			//std::cout << "plane" << plane_address.ChannelID << ":" << plane_address.ChipID << ":" << plane_address.DieID << ":" << plane_address.PlaneID << " stop serving slc due to data migration." << std::endl;
+			return true;
+		}
+		PlaneBookKeepingType* pbke = &(_my_instance->block_manager->plane_manager[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID]);
+		if (pbke->Get_free_slc_page_number() > 0)
+		{
+			return false;
+		}
+		else
+		{
+			data_migration_flag = true;
+			Check_data_migration_required(pbke->Get_free_slc_block_pool_size(), plane_address);
+			return true;
+		}
+		//return pbke->Get_free_slc_page_number() == 0;
+	}
+
+	bool GC_and_WL_Unit_Base::Is_doing_data_migration(const NVM::FlashMemory::Physical_Page_Address& plane_address)
+	{
+		PlaneBookKeepingType* pbke = &(_my_instance->block_manager->plane_manager[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID]);
+		return pbke->Doing_data_migration;
+	}
+
+	void GC_and_WL_Unit_Base::Decrease_plane_num_doing_data_migration()
+	{
+		plane_num_doing_data_migration--;
 	}
 
 	bool GC_and_WL_Unit_Base::is_safe_gc_wl_candidate(const PlaneBookKeepingType* plane_record, const flash_block_ID_type gc_wl_candidate_block_id)
@@ -223,7 +343,10 @@ namespace SSD_Components
 		for (unsigned int stream_id = 0; stream_id < address_mapping_unit->Get_no_of_input_streams(); stream_id++)
 			if ((&plane_record->Blocks[gc_wl_candidate_block_id]) == plane_record->Data_wf[stream_id]
 				|| (&plane_record->Blocks[gc_wl_candidate_block_id]) == plane_record->Translation_wf[stream_id]
-				|| (&plane_record->Blocks[gc_wl_candidate_block_id]) == plane_record->GC_wf[stream_id])
+				|| (&plane_record->Blocks[gc_wl_candidate_block_id]) == plane_record->GC_wf[stream_id]
+				|| (&plane_record->Blocks[gc_wl_candidate_block_id]) == plane_record->Data_slc_wf[stream_id]
+				|| (&plane_record->Blocks[gc_wl_candidate_block_id]) == plane_record->Data_tlc_wf[stream_id]
+				)
 				return false;
 
 		//The block shouldn't have an ongoing program request (all pages must already be written)

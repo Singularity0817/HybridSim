@@ -47,6 +47,7 @@ namespace SSD_Components
 		* be mixes of reads, writes, and erases.
 		*/
 		virtual void Schedule() = 0;
+		virtual void Serve_transactions() = 0;
 		virtual void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 	protected:
 		FTL* ftl;

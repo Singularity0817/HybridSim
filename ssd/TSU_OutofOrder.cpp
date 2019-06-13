@@ -20,6 +20,7 @@ namespace SSD_Components
 		GCEraseTRQueue = new Flash_Transaction_Queue*[channel_count];
 		MappingReadTRQueue = new Flash_Transaction_Queue*[channel_count];
 		MappingWriteTRQueue = new Flash_Transaction_Queue*[channel_count];
+		queue_flag = false;
 		for (unsigned int channelID = 0; channelID < channel_count; channelID++)
 		{
 			UserReadTRQueue[channelID] = new Flash_Transaction_Queue[chip_no_per_channel];
@@ -67,7 +68,11 @@ namespace SSD_Components
 
 	void TSU_OutOfOrder::Validate_simulation_config() {}
 
-	void TSU_OutOfOrder::Execute_simulator_event(MQSimEngine::Sim_Event* event) {}
+	void TSU_OutOfOrder::Execute_simulator_event(MQSimEngine::Sim_Event* event) 
+	{
+		queue_flag = false;
+		Serve_transactions();
+	}
 
 	void TSU_OutOfOrder::Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter)
 	{
@@ -117,6 +122,7 @@ namespace SSD_Components
 
 	inline void TSU_OutOfOrder::Submit_transaction(NVM_Transaction_Flash* transaction)
 	{
+		//std::cout << "LPA: " << transaction->LPA << " is submitted at " << Simulator->Time() << std::endl;
 		transaction_receive_slots.push_back(transaction);
 	}
 
@@ -175,8 +181,9 @@ namespace SSD_Components
 			default:
 				break;
 			}
-
-
+		//print_queue_depth();
+		Serve_transactions();
+		/*
 		for (flash_channel_ID_type channelID = 0; channelID < channel_count; channelID++)
 		{
 			if (_NVMController->Get_channel_status(channelID) == BusChannelStatus::IDLE)
@@ -193,6 +200,44 @@ namespace SSD_Components
 				}
 			}
 		}
+		std::cout << "              ";
+		print_queue_depth();
+		if (!queues_are_empty())
+		{
+			Simulator->Register_sim_event(Simulator->Time()+1000000, this, NULL, 0);
+		}
+		*/
+	}
+
+	void TSU_OutOfOrder::Serve_transactions()
+	{
+		//std::cout << "              ";
+		//print_queue_depth();
+		for (flash_channel_ID_type channelID = 0; channelID < channel_count; channelID++)
+		{
+			if (_NVMController->Get_channel_status(channelID) == BusChannelStatus::IDLE)
+			{
+				for (unsigned int i = 0; i < chip_no_per_channel; i++) {
+					NVM::FlashMemory::Flash_Chip* chip = _NVMController->Get_chip(channelID, Round_robin_turn_of_channel[channelID]);
+					//The TSU does not check if the chip is idle or not since it is possible to suspend a busy chip and issue a new command
+					if (!service_read_transaction(chip))
+						if (!service_write_transaction(chip))
+							service_erase_transaction(chip);
+					Round_robin_turn_of_channel[channelID] = (flash_chip_ID_type)(Round_robin_turn_of_channel[channelID] + 1) % chip_no_per_channel;
+					if (_NVMController->Get_channel_status(chip->ChannelID) != BusChannelStatus::IDLE)
+						break;
+				}
+			}
+		}
+		//std::cout << "             ";
+		//print_queue_depth();
+		
+		if (queues_are_empty() == false && queue_flag == true)
+		{
+			queue_flag = true;
+			Simulator->Register_sim_event(Simulator->Time()+10000, this, NULL, 0);
+		}
+		
 	}
 	
 	bool TSU_OutOfOrder::service_read_transaction(NVM::FlashMemory::Flash_Chip* chip)
@@ -274,6 +319,7 @@ namespace SSD_Components
 				{
 					if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
 					{
+						//std::cout << "LPA: " << (*it)->LPA << " read is triggered at" << Simulator->Time() << std::endl;
 						(*it)->SuspendRequired = suspensionRequired;
 						planeVector |= 1 << (*it)->Address.PlaneID;
 						transaction_dispatch_slots.push_back(*it);
@@ -291,6 +337,7 @@ namespace SSD_Components
 					{
 						if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
 						{
+							//std::cout << "LPA: " << (*it)->LPA << " read is triggered at " << Simulator->Time() << std::endl;
 							(*it)->SuspendRequired = suspensionRequired;
 							planeVector |= 1 << (*it)->Address.PlaneID;
 							transaction_dispatch_slots.push_back(*it);
@@ -302,7 +349,10 @@ namespace SSD_Components
 				}
 
 			if (transaction_dispatch_slots.size() > 0)
+			{
+				//std::cout << "*sending read transactions..." << std::endl;
 				_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+			}
 			transaction_dispatch_slots.clear();
 			dieID = (dieID + 1) % die_no_per_chip;
 		}
@@ -310,17 +360,56 @@ namespace SSD_Components
 		return true;
 	}
 
+	bool TSU_OutOfOrder::is_a_full_page_set(std::list<NVM_Transaction_Flash*> transaction_receive_slots, int numOfPagesInOneSet, bool page_set_flag)
+	{
+		//*ZWH*
+		//return true;
+		//*ZWH*
+		//std::cout << "+++Checking page set..." << std::endl;
+		//if (transaction_dispatch_slots == NULL)
+		//	return false;
+		//std::cout << "++++++Checking size..." << std::endl;
+		if (transaction_receive_slots.size() == numOfPagesInOneSet)
+		{
+			//std::cout << "+++++++++Size Confirmed..." << std::endl;
+			return true;
+		}
+		//std::cout << "++++++Checking flag..." << std::endl;
+		if (page_set_flag == true)
+		{
+			//std::cout << "+++++++++Flag Confirmed..." << std::endl;
+			return true;
+		}
+		
+		sim_time_type now_time;
+		now_time = Simulator->Time();
+		for (auto it = transaction_receive_slots.begin(); it != transaction_receive_slots.end(); it++)
+		{
+			if (((*it)->Address.PageID + 1) % numOfPagesInOneSet == 0)
+				return true;
+			if (now_time - (*it)->Issue_time > 100000000)
+				return true;
+		}
+		
+		return false;
+	}
+
 	bool TSU_OutOfOrder::service_write_transaction(NVM::FlashMemory::Flash_Chip* chip)
 	{
+		//std::cout << "TSU_OutOFOrder::service_write_transaction on chip " << chip->ChannelID << ":" << chip->ChipID << std::endl;
 		Flash_Transaction_Queue *sourceQueue1 = NULL, *sourceQueue2 = NULL;
-
 		if (ftl->GC_and_WL_Unit->GC_is_in_urgent_mode(chip))//If flash transactions related to GC are prioritzed (non-preemptive execution mode of GC), then GC queues are checked first
 		{
+			//std::cout << "GC_is_in_urgent_mode" << std::endl;
 			if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 			{
 				sourceQueue1 = &GCWriteTRQueue[chip->ChannelID][chip->ChipID];
+				//std::cout << "GCWriteTRQueue is NOT EMPTY!!! 1 Size:" << sourceQueue1->size() << std::endl;
 				if (UserWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				{
 					sourceQueue2 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID];
+					//std::cout << "===> UserWriteTRQueue 1 Size:" << sourceQueue2->size() << std::endl;
+				}
 			}
 			else if (GCEraseTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 				return false;
@@ -334,7 +423,10 @@ namespace SSD_Components
 			{
 				sourceQueue1 = &UserWriteTRQueue[chip->ChannelID][chip->ChipID];
 				if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+				{
 					sourceQueue2 = &GCWriteTRQueue[chip->ChannelID][chip->ChipID];
+					//std::cout << "GCWriteTRQueue is NOT EMPTY!!! 2 Size:" << sourceQueue2->size() << std::endl;
+				}
 			}
 			else if (GCWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 				sourceQueue1 = &GCWriteTRQueue[chip->ChannelID][chip->ChipID];
@@ -347,64 +439,281 @@ namespace SSD_Components
 		switch (cs)
 		{
 		case ChipStatus::IDLE:
+			//std::cout << ">>>Chip is idle" << std::endl;
 			break;
 		case ChipStatus::ERASING:
+			//std::cout << ">>>Chip is erasing" << std::endl;
 			if (!eraseSuspensionEnabled || _NVMController->HasSuspendedCommand(chip))
 				return false;
 			if (_NVMController->Expected_finish_time(chip) - Simulator->Time() < eraseReasonableSuspensionTimeForWrite)
 				return false;
 			suspensionRequired = true;
 		default:
+			//std::cout << ">>>Chip is in default???" << std::endl;
 			return false;
 		}
 
-		flash_die_ID_type dieID = sourceQueue1->front()->Address.DieID;
-		flash_page_ID_type pageID = sourceQueue1->front()->Address.PageID;
-		unsigned int planeVector = 0;
+		//**ZWH**
+		//std::cout << "	Begin to check SLC writes..." << std::endl;
+		std::vector<int> die_recorder(die_no_per_chip, 0);
 		for (unsigned int i = 0; i < die_no_per_chip; i++)
+			die_recorder[i] = 0;
+		transaction_dispatch_slots.clear();
+		for (Flash_Transaction_Queue::iterator it = sourceQueue1->begin(); it != sourceQueue1->end(); )
 		{
-			transaction_dispatch_slots.clear();
-			planeVector = 0;
-
-			for (Flash_Transaction_Queue::iterator it = sourceQueue1->begin(); it != sourceQueue1->end(); )
+			flash_die_ID_type dieID = (*it)->Address.DieID;
+			if (die_recorder[dieID] == 1)
 			{
-				if (((NVM_Transaction_Flash_WR*)*it)->RelatedRead == NULL && (*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+				it++;
+				continue;
+			}
+			flash_plane_ID_type planeID = (*it)->Address.PlaneID;
+			flash_block_ID_type blockID = (*it)->Address.BlockID;
+			//std::cout << "   >>>checking transaction " << (*it)->LPA << " at " << Simulator->Time() << std::endl;
+			if (chip->Get_Flash_Type_of_Block(blockID, planeID, dieID) == Flash_Technology_Type::SLC)
+			{
+				//std::cout << "   find an SLC write" << std::endl;
+				if(((NVM_Transaction_Flash_WR*)*it)->RelatedRead == NULL)
 				{
-					if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
-					{
-						(*it)->SuspendRequired = suspensionRequired;
-						planeVector |= 1 << (*it)->Address.PlaneID;
-						transaction_dispatch_slots.push_back(*it);
-						sourceQueue1->remove(it++);
-						continue;
-					}
+					die_recorder[dieID] = 1;
+					(*it)->SuspendRequired = suspensionRequired;
+					//std::cout << "LPA: " << (*it)->LPA << " is selected to sent to chip " << Simulator->Time() << std::endl;
+					//planeVector |= 1 << (*it)->Address.PlaneID;
+					transaction_dispatch_slots.push_back(*it);
+					sourceQueue1->remove(it++);
+					//std::cout << "**sending SLC write transactions to " << chip->ChannelID << ":" << chip->ChipID << std::endl;
+					_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+					
+					//std::cout << "    SLC write command sent..." << std::endl;
+					transaction_dispatch_slots.clear();
+					//std::cout << sourceQueue1->size() << " commands are in the queue" << std::endl;
+					continue;
+				}
+				else{
+					//std::cout << "LPA: " << (*it)->LPA << " cannot program due to related read " << Simulator->Time() << std::endl;
+				}
+			}
+			else{
+				//std::cout << "LPA: " << (*it)->LPA << " not an SLC write" << std::endl;
+			}
+			it++;
+		}
+		//std::cout << "out of the circle" << std::endl;
+		transaction_dispatch_slots.clear();
+		if (sourceQueue2 != NULL)
+		{
+			for (Flash_Transaction_Queue::iterator it = sourceQueue2->begin(); it != sourceQueue2->end(); )
+			{
+				flash_die_ID_type dieID = (*it)->Address.DieID;
+				if (die_recorder[dieID] == 1)
+				{
+					it++;
+					continue;
+				}
+				flash_plane_ID_type planeID = (*it)->Address.PlaneID;
+				flash_block_ID_type blockID = (*it)->Address.BlockID;
+				if (chip->Get_Flash_Type_of_Block(blockID, planeID, dieID) == Flash_Technology_Type::SLC && ((NVM_Transaction_Flash_WR*)*it)->RelatedRead == NULL)
+				{
+					die_recorder[dieID] = 1;
+					(*it)->SuspendRequired = suspensionRequired;
+					//planeVector |= 1 << (*it)->Address.PlaneID;
+					transaction_dispatch_slots.push_back(*it);
+					sourceQueue2->remove(it++);
+					//std::cout << "**2 sending SLC write transactions to " << chip->ChannelID << ":" << chip->ChipID << std::endl;
+					_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+					//std::cout << "SLC write command sent..." << std::endl;
+					transaction_dispatch_slots.clear();
+					continue;
 				}
 				it++;
 			}
-
-			if (sourceQueue2 != NULL)
-				for (Flash_Transaction_Queue::iterator it = sourceQueue2->begin(); it != sourceQueue2->end(); )
+		}
+		transaction_dispatch_slots.clear();
+		//std::cout << "slc writes are despatched..." << std::endl;
+		//**ZWH**
+		//std::cout << "The chip is IDLE for processing write operations..." << std::endl;
+		if (chip->flash_program_method == Flash_Program_Type::PAGEBYPAGE)
+		{
+			//std::cout << "checking page-by-page program commands...." << std::endl;
+			for (unsigned int i = 0; i < die_no_per_chip; i++)
+			{
+				if (die_recorder[i] == 1)
 				{
-					if (((NVM_Transaction_Flash_WR*)*it)->RelatedRead == NULL && (*it)->Address.DieID == dieID && !(planeVector & 1 << (*it)->Address.PlaneID))
+					continue;
+				}
+				if (sourceQueue1 == NULL)	continue;
+				else if(sourceQueue1->size() == 0)	continue;
+				for (Flash_Transaction_Queue::iterator it1 = sourceQueue1->begin(); it1 != sourceQueue1->end(); it1++)
+				{
+					flash_die_ID_type dieID = (*it1)->Address.DieID;
+					if (dieID != i)	continue;
+					flash_plane_ID_type planeID = (*it1)->Address.PlaneID;
+					flash_block_ID_type blockID = (*it1)->Address.BlockID;
+					flash_page_ID_type pageID = (*it1)->Address.PageID;
+					if (chip->Get_Flash_Type_of_Block(blockID, planeID, dieID) == Flash_Technology_Type::SLC)
+						continue;
+					(*it1)->SuspendRequired = suspensionRequired;
+					transaction_dispatch_slots.push_back(*it1);
+					_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+					die_recorder[i] = 1;
+					sourceQueue1->remove(*it1);
+					transaction_dispatch_slots.clear();
+					break;
+				}
+			}
+			for (unsigned int i = 0; i < die_no_per_chip; i++)
+			{
+				if (die_recorder[i] == 1)
+				{
+					continue;
+				}
+				if (sourceQueue2 == NULL)	continue;
+				else if(sourceQueue2->size() == 0)	continue;
+				for (Flash_Transaction_Queue::iterator it2 = sourceQueue2->begin(); it2 != sourceQueue2->end(); it2++)
+				{
+					flash_die_ID_type dieID = (*it2)->Address.DieID;
+					if (dieID != i)	continue;
+					flash_plane_ID_type planeID = (*it2)->Address.PlaneID;
+					flash_block_ID_type blockID = (*it2)->Address.BlockID;
+					flash_page_ID_type pageID = (*it2)->Address.PageID;
+					if (chip->Get_Flash_Type_of_Block(blockID, planeID, dieID) == Flash_Technology_Type::SLC)
+						continue;
+					(*it2)->SuspendRequired = suspensionRequired;
+					transaction_dispatch_slots.push_back(*it2);
+					_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+					die_recorder[i] = 1;
+					sourceQueue2->remove(*it2);
+					transaction_dispatch_slots.clear();
+					break;
+				}
+			}
+			return true;
+		}
+		else if(chip->flash_program_method == Flash_Program_Type::ONESHOT)
+		{
+			for (unsigned int i = 0; i < die_no_per_chip; i++)
+			{
+				if (die_recorder[i] == 1)
+				{
+					continue;
+				}
+				bool page_set_flag = false;
+				if (sourceQueue1 == NULL)	continue;
+				else if(sourceQueue1->size() == 0)	continue;
+				for (Flash_Transaction_Queue::iterator it1 = sourceQueue1->begin(); it1 != sourceQueue1->end(); it1++)
+				{
+					flash_die_ID_type dieID = (*it1)->Address.DieID;
+					if (dieID != i)	continue;
+					flash_plane_ID_type planeID = (*it1)->Address.PlaneID;
+					flash_block_ID_type blockID = (*it1)->Address.BlockID;
+					flash_page_ID_type pageID = (*it1)->Address.PageID;
+					if (chip->Get_Flash_Type_of_Block(blockID, planeID, dieID) == Flash_Technology_Type::SLC)
+						continue;
+					for (Flash_Transaction_Queue::iterator it2 = sourceQueue1->begin(); it2 != sourceQueue1->end(); it2++)
 					{
-						if (planeVector == 0 || (*it)->Address.PageID == pageID)//Check for identical pages when running multiplane command
+						if (((NVM_Transaction_Flash_WR*)*it2)->RelatedRead == NULL && (*it2)->Address.DieID == dieID && (*it2)->Address.PlaneID == planeID && (*it2)->Address.BlockID == blockID)
 						{
-							(*it)->SuspendRequired = suspensionRequired;
-							planeVector |= 1 << (*it)->Address.PlaneID;
-							transaction_dispatch_slots.push_back(*it);
-							sourceQueue2->remove(it++);
-							continue;
+							if ((*it2)->Address.PageID / 3 == pageID / 3)
+							{
+								(*it2)->SuspendRequired = suspensionRequired;
+								transaction_dispatch_slots.push_back(*it2);
+								continue;
+							}
+							else if ((*it2)->Address.PageID / 3 > pageID / 3)
+							{
+								page_set_flag = true;
+								break;
+							}
 						}
 					}
-					it++;
+					if (sourceQueue2 != NULL && transaction_dispatch_slots.size() < 3 && page_set_flag == false)
+					{
+						for (Flash_Transaction_Queue::iterator it3 = sourceQueue2->begin(); it3 != sourceQueue2->end(); it3++)
+						{
+							if (((NVM_Transaction_Flash_WR*)*it3)->RelatedRead == NULL && (*it3)->Address.DieID == dieID && (*it3)->Address.PlaneID == planeID && (*it3)->Address.BlockID == blockID)
+							{
+								if ((*it3)->Address.PageID / 3 == pageID / 3)
+								{
+									(*it3)->SuspendRequired = suspensionRequired;
+									transaction_dispatch_slots.push_back(*it3);
+									continue;
+								}
+								else if ((*it3)->Address.PageID / 3 > pageID / 3)
+								{
+									page_set_flag = true;
+									break;
+								}
+							}
+						}
+					}
+					//std::cout << "----->Die " << i << " ready to check page set..." << std::endl;
+					if (transaction_dispatch_slots.size() == 0)
+						continue;
+					if (is_a_full_page_set(transaction_dispatch_slots, 3, page_set_flag) == true)
+					{
+						/*
+						std::cout << "### Dispatching a full page set SUCCESS " << std::endl;
+						std::cout << chip->ChannelID << ":";
+						std::cout << chip->ChipID << ":" ;
+						std::cout << dieID << ":";
+						std::cout << planeID << ":";
+						std::cout << blockID << std::endl;
+						*/
+						//std::cout << "**sending TLC write transactions..." << std::endl;
+						//std::cout << "**sending TLC write transactions to " << chip->ChannelID << ":" << chip->ChipID << std::endl;
+						_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+						die_recorder[i] = 1;
+						//std::cout << ">>> TLC write Command is sent!" << std::endl;
+						unsigned int queue1_size = sourceQueue1->size();
+						for (auto it = transaction_dispatch_slots.begin(); it != transaction_dispatch_slots.end(); it++)
+						{
+							//std::cout << (*it)->Address.PageID << " ";
+							if (sourceQueue1 != NULL)
+							{
+								//std::cout << "------>Before, sourceQueue1 size " << sourceQueue1->size() << std::endl;
+								sourceQueue1->remove(*it);
+								//std::cout << "______remove from queue 1______" << std::endl;
+								//std::cout << "------>After, sourceQueue1 size " << sourceQueue1->size() << std::endl;
+							}
+							if (sourceQueue1->size() < queue1_size)
+							{
+								queue1_size = sourceQueue1->size();
+								continue;
+							}
+							else// if (sourceQueue2 != NULL)
+							{
+								//std::cout << "------>Before, sourceQueue2 size " << sourceQueue2->size() << std::endl;
+								sourceQueue2->remove(*it);
+								//std::cout << "______remove from queue 2______" << std::endl;
+								//std::cout << "------>After, sourceQueue2 size " << sourceQueue2->size() << std::endl;
+							}
+						}
+						//std::cout << std::endl;
+						transaction_dispatch_slots.clear();
+						//std::cout << "___dispatch slots are cleared___" << std::endl;
+						break;
+					}
+					else
+					{
+						//std::cout << "@@@ Dispatching a full page set FAILED!!!" << std::endl;
+						transaction_dispatch_slots.clear();
+					}
 				}
-
-			if (transaction_dispatch_slots.size() > 0)
-				_NVMController->Send_command_to_chip(transaction_dispatch_slots);
-			transaction_dispatch_slots.clear();
-			dieID = (dieID + 1) % die_no_per_chip;
+			}
+			for (unsigned int i = 0; i < die_no_per_chip; i++)
+			{
+				if (die_recorder[i] == 1)
+				{
+					return true;
+				}
+			}
+			return false;
 		}
-		return true;
+		else
+		{
+			std::cout << "Wrong Program Method :: TSU_OutofOrder.cpp" << std::endl;
+		}
+		//std::cout << "TSU_OutOfOrder::service_program_transaction    " << "SUCCESS" << std::endl;
 	}
 
 	bool TSU_OutOfOrder::service_erase_transaction(NVM::FlashMemory::Flash_Chip* chip)
@@ -415,7 +724,8 @@ namespace SSD_Components
 		Flash_Transaction_Queue* source_queue = &GCEraseTRQueue[chip->ChannelID][chip->ChipID];
 		if (source_queue->size() == 0)
 			return false;
-
+			
+		//std::cout << "Servicing an erase transaction" << std::endl;
 		flash_die_ID_type dieID = source_queue->front()->Address.DieID;
 		unsigned int planeVector = 0;
 		for (unsigned int i = 0; i < die_no_per_chip; i++)
@@ -434,10 +744,63 @@ namespace SSD_Components
 				it++;
 			}
 			if (transaction_dispatch_slots.size() > 0)
+			{
+				//std::cout << "*** sending erase transactions..." << std::endl;
+				//std::cout << "**sending erase transactions to " << chip->ChannelID << ":" << chip->ChipID << std::endl;
 				_NVMController->Send_command_to_chip(transaction_dispatch_slots);
+			}
 			transaction_dispatch_slots.clear();
 			dieID = (dieID + 1) % die_no_per_chip;
 		}
+		//std::cout << "Erase operation success!" << std::endl;
 		return true;
+	}
+
+	void TSU_OutOfOrder::print_queue_depth()
+	{
+		unsigned int read_transaction_count = 0;
+		unsigned int write_transaction_count = 0;
+		unsigned int gc_read_transaction_count = 0;
+		unsigned int gc_write_transaction_count = 0;
+		unsigned int erase_transaction_count = 0;
+		for(int chan_cnt = 0; chan_cnt < channel_count; chan_cnt++)
+		{
+			for(int chip_cnt = 0; chip_cnt < chip_no_per_channel; chip_cnt++)
+			{
+				read_transaction_count += UserReadTRQueue[chan_cnt][chip_cnt].size();
+				write_transaction_count += UserWriteTRQueue[chan_cnt][chip_cnt].size();
+				gc_read_transaction_count += GCReadTRQueue[chan_cnt][chip_cnt].size();
+				gc_write_transaction_count += GCWriteTRQueue[chan_cnt][chip_cnt].size();
+				erase_transaction_count += GCEraseTRQueue[chan_cnt][chip_cnt].size();
+			}
+		}
+		std::cout << read_transaction_count << ", " << write_transaction_count << ", " << gc_read_transaction_count << ", " << gc_write_transaction_count << ", " << erase_transaction_count << std::endl;
+	}
+
+	bool TSU_OutOfOrder::queues_are_empty()
+	{
+		unsigned int read_transaction_count = 0;
+		unsigned int write_transaction_count = 0;
+		unsigned int gc_read_transaction_count = 0;
+		unsigned int gc_write_transaction_count = 0;
+		unsigned int erase_transaction_count = 0;
+		for(int chan_cnt = 0; chan_cnt < channel_count; chan_cnt++)
+		{
+			for(int chip_cnt = 0; chip_cnt < chip_no_per_channel; chip_cnt++)
+			{
+				read_transaction_count += UserReadTRQueue[chan_cnt][chip_cnt].size();
+				write_transaction_count += UserWriteTRQueue[chan_cnt][chip_cnt].size();
+				gc_read_transaction_count += GCReadTRQueue[chan_cnt][chip_cnt].size();
+				gc_write_transaction_count += GCWriteTRQueue[chan_cnt][chip_cnt].size();
+				erase_transaction_count += GCEraseTRQueue[chan_cnt][chip_cnt].size();
+			}
+		}
+		if (write_transaction_count == 0 && gc_write_transaction_count == 0)
+			return true;
+		else
+		{
+			return false;
+		}
+		
 	}
 }

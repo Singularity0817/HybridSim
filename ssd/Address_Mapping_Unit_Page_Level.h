@@ -63,6 +63,33 @@ namespace SSD_Components
 		unsigned int capacity;
 	};
 
+	/*ZWH*/
+	class Plane_Program_Counter
+	{
+	public:
+		Plane_Program_Counter(flash_channel_ID_type channel_id, flash_chip_ID_type chip_id, flash_die_ID_type die_id, flash_plane_ID_type plane_id);
+		~Plane_Program_Counter();
+
+		bool Update();
+
+		flash_channel_ID_type channel_id;
+		flash_chip_ID_type chip_id;
+		flash_die_ID_type die_id;
+		flash_plane_ID_type plane_id;
+		unsigned int program_counter;
+	};
+
+	class Program_Counter_Manager
+	{
+	public:
+		Program_Counter_Manager(unsigned int channel_no, unsigned int chip_no, unsigned int die_no, unsigned int plane_no);
+		~Program_Counter_Manager();
+
+		void Manage_counters();
+
+		std::list<Plane_Program_Counter *> plane_program_counters;
+	};
+
 	/* Each stream has its own address mapping domain. It helps isolation of GC interference
 	* (e.g., multi-streamed SSD HotStorage 2014, and OPS isolation in FAST 2015)
 	* However, CMT is shared among concurrent streams in two ways: 1) each address mapping domain
@@ -123,11 +150,17 @@ namespace SSD_Components
 		flash_plane_ID_type* Plane_ids;
 		unsigned int Plane_no;
 
+		//ZWH
+		Program_Counter_Manager* program_counter_manager;
+		//ZWH
+
 		LHA_type max_logical_sector_address;
 		LPA_type Total_logical_pages_no;
 		PPA_type Total_physical_pages_no;
 		MVPN_type Total_translation_pages_no;
 	};
+
+	enum class Allocation_Policy {TYPE_FIRST, PARALLELISM_FIRST, TPJ_PA};
 
 	class Address_Mapping_Unit_Page_Level : public Address_Mapping_Unit_Base
 	{
@@ -140,6 +173,15 @@ namespace SSD_Components
 			std::vector<std::vector<flash_channel_ID_type>> stream_channel_ids, std::vector<std::vector<flash_chip_ID_type>> stream_chip_ids,
 			std::vector<std::vector<flash_die_ID_type>> stream_die_ids, std::vector<std::vector<flash_plane_ID_type>> stream_plane_ids,
 			unsigned int Block_no_per_plane, unsigned int Page_no_per_block, unsigned int SectorsPerPage, unsigned int PageSizeInBytes,
+			double Overprovisioning_ratio, CMT_Sharing_Mode sharing_mode = CMT_Sharing_Mode::SHARED, bool fold_large_addresses = true);
+		Address_Mapping_Unit_Page_Level(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI* flash_controller, Flash_Block_Manager_Base* block_manager,
+			bool ideal_mapping_table, unsigned int cmt_capacity_in_byte, Flash_Plane_Allocation_Scheme_Type PlaneAllocationScheme,
+			unsigned int ConcurrentStreamNo,
+			unsigned int ChannelCount, unsigned int chip_no_per_channel, unsigned int DieNoPerChip, unsigned int PlaneNoPerDie,
+			std::vector<std::vector<flash_channel_ID_type>> stream_channel_ids, std::vector<std::vector<flash_chip_ID_type>> stream_chip_ids,
+			std::vector<std::vector<flash_die_ID_type>> stream_die_ids, std::vector<std::vector<flash_plane_ID_type>> stream_plane_ids,
+			unsigned int Block_no_per_plane, unsigned int Page_no_per_block, unsigned int SectorsPerPage, unsigned int PageSizeInBytes,
+			unsigned int page_no_per_slc_block, unsigned int slc_block_no_per_plane,
 			double Overprovisioning_ratio, CMT_Sharing_Mode sharing_mode = CMT_Sharing_Mode::SHARED, bool fold_large_addresses = true);
 		~Address_Mapping_Unit_Page_Level();
 		void Setup_triggers();
@@ -171,10 +213,15 @@ namespace SSD_Components
 	private:
 		static Address_Mapping_Unit_Page_Level* _my_instance;
 		unsigned int cmt_capacity;
+		unsigned int num_transactions_to_translate, num_r_transactions_to_translate, num_w_transactions_to_translate;
 		AddressMappingDomain** domains;
 		unsigned int CMT_entry_size, GTD_entry_size;//In CMT MQSim stores (lpn, ppn, page status bits) but in GTD it only stores (ppn, page status bits)
 		void allocate_plane_for_user_write(NVM_Transaction_Flash_WR* transaction);
+		void allocate_plane_for_user_write(NVM_Transaction_Flash_WR* transaction, Flash_Technology_Type* flash_type);
 		void allocate_page_in_plane_for_user_write(NVM_Transaction_Flash_WR* transaction, bool is_for_gc);
+		//*ZWH*
+		void allocate_page_in_plane_for_user_write(NVM_Transaction_Flash_WR* transaction, bool is_for_gc, Flash_Technology_Type flash_type);
+		//*ZWH*
 		void allocate_plane_for_translation_write(NVM_Transaction_Flash* transaction);
 		void allocate_page_in_plane_for_translation_write(NVM_Transaction_Flash* transaction, MVPN_type mvpn, bool is_for_gc);
 		void allocate_plane_for_preconditioning(stream_id_type stream_id, LPA_type lpn, NVM::FlashMemory::Physical_Page_Address& targetAddress);
@@ -198,6 +245,14 @@ namespace SSD_Components
 		void manage_mapping_transaction_facing_barrier(stream_id_type stream_id, MVPN_type mvpn, bool read);
 		bool is_lpa_locked_for_gc(stream_id_type stream_id, LPA_type lpa);
 		bool is_mvpn_locked_for_gc(stream_id_type stream_id, MVPN_type mvpn);
+
+		unsigned int number_of_request_face_barrier;
+		unsigned int round_robin_counter;
+		unsigned int total_plane_num;
+		unsigned int next_serve_channel;
+		unsigned int next_serve_chip;
+		bool print_page_allocation_info = false;
+		Allocation_Policy allocation_policy = Allocation_Policy::TPJ_PA;
 	};
 
 }

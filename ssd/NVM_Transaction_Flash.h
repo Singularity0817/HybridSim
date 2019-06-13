@@ -31,6 +31,7 @@ namespace SSD_Components
 
 		bool SuspendRequired;
 		bool Physical_address_determined;
+		bool Submitted_to_TSU;
 		sim_time_type Estimated_alone_waiting_time;//Used in scheduling methods, such as FLIN, where fairness and QoS is considered in scheduling
 		bool FLIN_Barrier;//Especially used in queue reordering inf FLIN scheduler
 	private:
