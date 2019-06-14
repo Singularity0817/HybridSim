@@ -188,7 +188,6 @@ namespace SSD_Components
 						program_count->die_id = die_cnt;
 						program_count->plane_id = plane_cnt;
 						plane_program_counters.push_back(program_count);
-						//std::cout << program_count->channel_id << " " << program_count->chip_id << " " << program_count->die_id << " " << program_count->plane_id << std::endl;
 					}
 				}
 			}
@@ -198,16 +197,9 @@ namespace SSD_Components
 
 	void Program_Counter_Manager::Manage_counters()
 	{
-		//std::cout << "   Managing the program counters ";
 		Plane_Program_Counter* temp_counter = plane_program_counters.front();
 		plane_program_counters.pop_front();
-		//std::cout << "After pop front: " << plane_program_counters.front()->channel_id << " " << plane_program_counters.front()->chip_id << " " << plane_program_counters.front()->die_id << " " << plane_program_counters.front()->plane_id << std::endl;
-		//std::cin.get();
-		//std::cout << "       The front counter is poped. " << plane_program_counters.size() << std::endl;
 		plane_program_counters.push_back(temp_counter);
-		//std::cout << "After push back: " << plane_program_counters.front()->channel_id << " " << plane_program_counters.front()->chip_id << " " << plane_program_counters.front()->die_id << " " << plane_program_counters.front()->plane_id << std::endl;
-		//std::cin.get();
-		//std::cout << "              The counter is push_back. " << plane_program_counters.size() << std::endl;
 	}
 
 	AddressMappingDomain::AddressMappingDomain(unsigned int cmt_capacity, unsigned int cmt_entry_size, unsigned int no_of_translation_entries_per_page,
@@ -222,8 +214,6 @@ namespace SSD_Components
 		Total_physical_pages_no = total_physical_sectors_no / sectors_no_per_page;
 		max_logical_sector_address = total_logical_sectors_no;
 		Total_logical_pages_no = (max_logical_sector_address / sectors_no_per_page) + (max_logical_sector_address % sectors_no_per_page == 0? 0 : 1);
-		//Total_logical_pages_no = (unsigned int)((double)Total_physical_pages_no * (1 - Overprovisioning_ratio));
-		//max_logical_sector_address = (LHA_type)(Sectors_no_per_page * Total_logical_pages_no - 1);
 		Channel_ids = new flash_channel_ID_type[channel_no];
 		for (flash_channel_ID_type cid = 0; cid < channel_no; cid++)
 			Channel_ids[cid] = channel_ids[cid];
@@ -236,7 +226,6 @@ namespace SSD_Components
 		Plane_ids = new flash_plane_ID_type[plane_no];
 		for (flash_plane_ID_type pid = 0; pid < plane_no; pid++)
 			Plane_ids[pid] = plane_ids[pid];
-
 
 		GlobalMappingTable = new GMTEntryType[Total_logical_pages_no];
 		for (unsigned int i = 0; i < Total_logical_pages_no; i++)
@@ -322,7 +311,6 @@ namespace SSD_Components
 			return CMT->Exists(stream_id, lpa);
 	}
 
-
 	Address_Mapping_Unit_Page_Level* Address_Mapping_Unit_Page_Level::_my_instance = NULL;
 	Address_Mapping_Unit_Page_Level::Address_Mapping_Unit_Page_Level(const sim_object_id_type& id, FTL* ftl, NVM_PHY_ONFI* flash_controller, Flash_Block_Manager_Base* block_manager,
 		bool ideal_mapping_table, unsigned int cmt_capacity_in_byte, Flash_Plane_Allocation_Scheme_Type PlaneAllocationScheme,
@@ -354,7 +342,6 @@ namespace SSD_Components
 			}
 		}
 
-
 		flash_channel_ID_type* channel_ids = NULL;
 		flash_channel_ID_type* chip_ids = NULL;
 		flash_channel_ID_type* die_ids = NULL;
@@ -384,7 +371,6 @@ namespace SSD_Components
 				per_stream_cmt_capacity = cmt_capacity / no_of_input_streams;
 				break;
 			}
-
 
 			channel_ids = new flash_channel_ID_type[stream_channel_ids[domainID].size()];
 			for (unsigned int i = 0; i < stream_channel_ids[domainID].size(); i++)
@@ -500,7 +486,6 @@ namespace SSD_Components
 				per_stream_cmt_capacity = cmt_capacity / no_of_input_streams;
 				break;
 			}
-
 
 			channel_ids = new flash_channel_ID_type[stream_channel_ids[domainID].size()];
 			for (unsigned int i = 0; i < stream_channel_ids[domainID].size(); i++)
