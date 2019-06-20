@@ -327,6 +327,11 @@ namespace SSD_Components
 			if (Simulator->Time() - Simulator->Last_request_triggerred_time >= dm_interval && free_slc_block_pool_size < (unsigned int)(slc_block_no_per_plane * 0.8))
 				allow_data_migration = true;
 		}
+		else if (dm_policy == Data_Migration_Policy::ALWAYS)
+		{
+			if (free_slc_block_pool_size < slc_block_pool_gc_threshold)
+				allow_data_migration = true;
+		}
 		else
 		{
 			std::cout << "Wrong Data Migration Policy..." << std::endl;

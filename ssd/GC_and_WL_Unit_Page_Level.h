@@ -9,7 +9,7 @@
 
 namespace SSD_Components
 {
-	enum class Data_Migration_Policy {IDLE, QPC_DM};
+	enum class Data_Migration_Policy {IDLE, QPC_DM, ALWAYS};
 
 	class GC_and_WL_Unit_Page_Level : public GC_and_WL_Unit_Base
 	{
