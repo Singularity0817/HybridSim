@@ -12,6 +12,7 @@
 #include "Stats.h"
 //#include "../exec/SSD_Device.h"
 #include "Host_Interface_Base.h"
+#include "../utils/Logger.h"
 
 namespace SSD_Components
 {
@@ -44,6 +45,7 @@ namespace SSD_Components
 		SSD_Components::Host_Interface_Base *host_interface;
 		//MQSimEngine::SSD_Device* ssd_device;
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
+		Utils::Logger *logger;
 	private:
 		unsigned int channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die;
 		unsigned int block_no_per_plane, page_no_per_block, page_size_in_sectors;

@@ -25,11 +25,13 @@ namespace SSD_Components
 		over_provisioning_ratio(over_provisioning_ratio), max_allowed_block_erase_count(max_allowed_block_erase_count)
 	{
 		Stats::Init_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
+		logger = new Utils::Logger("./LOG");
 	}
 
 	FTL::~FTL()
 	{
 		Stats::Clear_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
+		delete logger;
 	}
 
 	void FTL::Validate_simulation_config()

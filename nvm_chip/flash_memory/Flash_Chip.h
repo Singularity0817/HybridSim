@@ -196,7 +196,7 @@ namespace NVM
 			unsigned int slc_block_no_per_plane;			//indicate how many slc blocks in a plane
 			//*ZWH*
 			sim_time_type *_readLatency, *_programLatency, _eraseLatency;
-			sim_time_type _slc_programLatency = 500000;
+			sim_time_type _slc_programLatency;
 			sim_time_type _suspendProgramLatency, _suspendEraseLatency;
 			sim_time_type _RBSignalDelayRead, _RBSignalDelayWrite, _RBSignalDelayErase;
 			sim_time_type lastTransferStart;

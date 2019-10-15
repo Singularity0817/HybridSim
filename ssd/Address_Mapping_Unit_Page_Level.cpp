@@ -5,6 +5,7 @@
 #include "Address_Mapping_Unit_Page_Level.h"
 #include "Stats.h"
 #include "../utils/Logical_Address_Partitioning_Unit.h"
+#include "../sim/Engine.h"
 
 namespace SSD_Components
 {

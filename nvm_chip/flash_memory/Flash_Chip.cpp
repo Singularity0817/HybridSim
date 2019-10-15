@@ -91,6 +91,7 @@ namespace NVM
 				_readLatency[i] = readLatency[i];
 				_programLatency[i] = programLatency[i];
 			}
+			_slc_programLatency = _programLatency[0];
 			_eraseLatency = eraseLatency;
 			_suspendProgramLatency = suspendProgramLatency;
 			_suspendEraseLatency = suspendEraseLatency;
