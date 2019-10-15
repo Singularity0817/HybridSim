@@ -123,7 +123,6 @@ namespace NVM
 				case CMD_PROGRAM_ONESHOT:
 					return _programLatency[2] + _RBSignalDelayWrite;
 				case CMD_PROGRAM_SLC:
-					//std::cout << "CMD_PROGRAM_SLC is triggered..." << std::endl;
 					return _slc_programLatency + _RBSignalDelayWrite;
 				case CMD_ERASE_BLOCK:
 				case CMD_ERASE_BLOCK_MULTIPLANE:
@@ -166,7 +165,6 @@ namespace NVM
 				case CMD_PROGRAM_ONESHOT:
 					return _programLatency[2] + _RBSignalDelayWrite;
 				case CMD_PROGRAM_SLC:
-					//std::cout << "CMD_PROGRAM_SLC is triggered..." << std::endl;
 					return _slc_programLatency + _RBSignalDelayWrite;
 				case CMD_ERASE_BLOCK:
 				case CMD_ERASE_BLOCK_MULTIPLANE:

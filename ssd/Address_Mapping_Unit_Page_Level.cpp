@@ -150,7 +150,6 @@ namespace SSD_Components
 		die_id = die_id;
 		plane_id = plane_id;
 		program_counter = 0;
-		//std::cout << "Counter: " << channel_id << " " << chip_id << " " << die_id << " " << plane_id << std::endl;
 	}
 
 	bool Plane_Program_Counter::Update()
@@ -616,7 +615,6 @@ namespace SSD_Components
 	}
 	void Address_Mapping_Unit_Page_Level::Translate_lpa_to_ppa_and_dispatch(const std::list<NVM_Transaction*>& transactionList)
 	{
-		//std::cout << "Address_Mapping_Unit_Page_Level::Translate_lpa_to_ppa_and_dispatch" << std::endl;
 		bool face_barrier = false;
 		for (std::list<NVM_Transaction*>::const_iterator it = transactionList.begin();
 			it != transactionList.end(); )
@@ -628,18 +626,10 @@ namespace SSD_Components
 			else if (is_lpa_locked_for_gc((*it)->Stream_id, ((NVM_Transaction_Flash*)(*it))->LPA))
 			{
 				face_barrier = true;
-				//std::cout << "LPA: " << ((NVM_Transaction_Flash*)(*it))->LPA << " from request " << ((NVM_Transaction_Flash*)(*it))->UserIORequest->ID << " is facing barrier." << std::endl;
 				manage_user_transaction_facing_barrier((NVM_Transaction_Flash*)*(it++));//iterator should be post-incremented since the iterator may be deleted from list
 			}
 			else query_cmt((NVM_Transaction_Flash*)(*it++));
 		}
-		/*
-		if (face_barrier)
-		{
-			number_of_request_face_barrier++;
-			std::cout << "++++ " << number_of_request_face_barrier << " requests face barrier ++++" << std::endl;
-		}
-		*/
 		if (transactionList.size() > 0)
 		{
 			ftl->TSU->Prepare_for_transaction_submit();
@@ -654,17 +644,10 @@ namespace SSD_Components
 				{
 					((NVM_Transaction_Flash*)(*it))->Submitted_to_TSU = true;
 					ftl->TSU->Submit_transaction(static_cast<NVM_Transaction_Flash*>(*it));
-					/*
-					if (((NVM_Transaction_Flash*)(*it))->Type == Transaction_Type::WRITE)
-					{
-						std::cout << "LPA: " << ((NVM_Transaction_Flash*)(*it))->LPA << " is submitted at " << Simulator->Time() << std::endl;
-					}
-					*/
 					if (((NVM_Transaction_Flash*)(*it))->Type == Transaction_Type::WRITE)
 						if (((NVM_Transaction_Flash_WR*)(*it))->RelatedRead != NULL)
 						{
 							ftl->TSU->Submit_transaction(((NVM_Transaction_Flash_WR*)(*it))->RelatedRead);
-							//std::cout << "LPA: " << ((NVM_Transaction_Flash*)(*it))->LPA << " related read is submitted at " << Simulator->Time() << std::endl;
 						}
 				}
 			}
@@ -758,10 +741,7 @@ namespace SSD_Components
 	*/
 	bool Address_Mapping_Unit_Page_Level::translate_lpa_to_ppa(stream_id_type streamID, NVM_Transaction_Flash* transaction)
 	{
-		//std::cout << "Ready to translate lpa to ppa for a request" << std::endl;
 		PPA_type ppa = domains[streamID]->Get_ppa(ideal_mapping_table, streamID, transaction->LPA);
-		//if (num_transactions_to_translate % 10000 == 0)
-			//std::cout << num_transactions_to_translate << " transactions are translated, " << num_r_transactions_to_translate << " : " << num_w_transactions_to_translate << std::endl;
 		num_transactions_to_translate++;
 
 		if (transaction->Type == Transaction_Type::READ)
@@ -778,7 +758,6 @@ namespace SSD_Components
 		else//This is a write transaction
 		{
 			num_w_transactions_to_translate++;
-			//std::cout << "translate_lpa_to_ppa for write transaction" << std::endl;
 			//try to allocate SLC page first
 			if (allocation_policy == Allocation_Policy::PARALLELISM_FIRST)
 			{
@@ -800,54 +779,7 @@ namespace SSD_Components
 				allocate_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction, target_flash_type);
 				allocate_page_in_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction, false, *target_flash_type);
 			}
-			/*
-			if (*target_flash_type == Flash_Technology_Type::SLC)
-			{
-				std::cout << "S " << transaction->Address.ChannelID << ":" << transaction->Address.ChipID << ":" << transaction->Address.DieID << ":" << transaction->Address.PlaneID << std::endl;
-			}
-			else if (*target_flash_type == Flash_Technology_Type::TLC)
-			{
-				std::cout << "T " << transaction->Address.ChannelID << ":" << transaction->Address.ChipID << ":" << transaction->Address.DieID << ":" << transaction->Address.PlaneID << std::endl;
-			}
-			else
-			{
-				std::cout << "WRONG WRITE!!!" << std::endl;
-			}
-			*/
-			
-			/*
-			if (*target_flash_type == Flash_Technology_Type::SLC)
-			{
-
-			}
-
-			if (target_flash_type == Flash_Technology_Type::SLC && ftl->GC_and_WL_Unit->Stop_servicing_slc_writes(transaction->Address))//there are too few free pages remaining only for GC
-			{
-				//std::cout << "The target plane is stopping servicing SLC writes.." << std::endl;
-				//return false;
-				target_flash_type = Flash_Technology_Type::TLC;
-				allocate_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction, target_flash_type);
-				if (ftl->GC_and_WL_Unit->Stop_servicing_writes(transaction->Address))
-				{
-					return false;
-				}
-			}
-			*/
-			//std::cout << "	about to allocate page_in_plane for user write" << std::endl;
-			/*
-			if(((NVM_Transaction_Flash_WR*)transaction)->UserIORequest->isHot == true)
-			{
-				allocate_page_in_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction, false, Flash_Technology_Type::SLC);
-			}
-			else
-			{
-				allocate_page_in_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction, false, Flash_Technology_Type::TLC);
-			}
-			*/
-			
-			//std::cout << "		finish allocating page_in_plane for user write" << std::endl;
 			transaction->Physical_address_determined = true;
-			//std::cout << ">>>Translate lpa to ppa for a request SUCCESS" << std::endl;
 			return true;
 		}
 		
@@ -855,7 +787,6 @@ namespace SSD_Components
 	
 	void Address_Mapping_Unit_Page_Level::Allocate_address_for_preconditioning(const stream_id_type stream_id, std::map<LPA_type, page_status_type>& lpa_list, std::vector<double>& steady_state_distribution)
 	{
-		//std::cout << "Allocating addresses for preconditioning...." << std::endl;
 		int idx = 0;
 		std::vector<LPA_type>**** assigned_lpas = new std::vector<LPA_type>***[channel_count];
 		for (unsigned int channel_cntr = 0; channel_cntr < channel_count; channel_cntr++)
@@ -1013,7 +944,6 @@ namespace SSD_Components
 	}
 	void Address_Mapping_Unit_Page_Level::Allocate_new_page_for_gc(NVM_Transaction_Flash_WR* transaction, bool is_translation_page)
 	{
-		//std::cout << "Address_Mapping_Unit_Page_Level::Allocate_new_page_for_gc" << std::endl;
 		if (is_translation_page)
 		{
 			MPPN_type mppn = domains[transaction->Stream_id]->GlobalTranslationDirectory[transaction->LPA].MPPN;
@@ -1065,11 +995,14 @@ namespace SSD_Components
 					break;
 				}
 			}
+			assert(program_counter != NULL);
+			/*
 			if (program_counter == NULL)
 			{
 				std::cout << "Impossible! What happened??!! " << std::endl;
 				std::cin.get();
 			}
+			*/
 			program_counter->Update();
 			//allocate_page_in_plane_for_user_write(transaction, true);
 			allocate_page_in_plane_for_user_write(transaction, true, Flash_Technology_Type::TLC);
@@ -1116,8 +1049,6 @@ namespace SSD_Components
 			}
 
 		}
-		//std::cout << "Address_Mapping_Unit_Page_Level::Allocate_new_page_for_gc" << std::endl;
-		//std::cout << "+++++++++Allocate pages for gc SUCCESS---------" << std::endl;
 	}
 	void Address_Mapping_Unit_Page_Level::allocate_plane_for_preconditioning(stream_id_type stream_id, LPA_type lpn, NVM::FlashMemory::Physical_Page_Address& targetAddress)
 	{
@@ -1553,14 +1484,12 @@ namespace SSD_Components
 					}
 				}
 			}
-			//std::cout << "SLC plane: " << available_slc_plane_count << " TLC plane: " << available_tlc_plane_count << std::endl;
 			//to determine using slc or tlc for servicing the transaction
 			if (candidate_slc_plane_found == true)
 			{
 				if (candidate_tlc_plane_found == true)
 				{
 					//compare the on going transactions of the candidate slc plane and candidate tlc plane
-					//std::cout << on_going_slc_write_in_candidate_plane << " : " << on_going_tlc_write_in_candidate_plane << std::endl;
 					if (on_going_slc_write_in_candidate_plane >= 3*(3 + on_going_tlc_write_in_candidate_plane))
 					{
 						targetAddress.ChannelID = candidate_tlc_address.ChannelID;
@@ -1674,53 +1603,6 @@ namespace SSD_Components
 			std::cout << "Wrong Allocation Policy..." << std::endl;
 			std::cin.get();
 		}
-		
-		//std::cout << "S " << targetAddress.ChannelID << ":" << targetAddress.ChipID << ":" << targetAddress.DieID << ":" << targetAddress.PlaneID << std::endl;
-		/*
-
-		if(flash_type == Flash_Technology_Type::SLC)
-		{
-			unsigned int slc_plane_counter = 0;
-			targetAddress.ChannelID = domain->Channel_ids[(unsigned int)(round_robin_counter % domain->Channel_no)];
-			targetAddress.ChipID = domain->Chip_ids[(unsigned int)((round_robin_counter / domain->Channel_no) % domain->Chip_no)];
-			targetAddress.DieID = domain->Die_ids[(unsigned int)((round_robin_counter / (domain->Chip_no * domain->Channel_no)) % domain->Die_no)];
-			targetAddress.PlaneID = domain->Plane_ids[(unsigned int)((round_robin_counter / (domain->Die_no * domain->Chip_no * domain->Channel_no)) % domain->Plane_no)];
-			round_robin_counter = (round_robin_counter + 1) % total_plane_num;
-			slc_plane_counter++;
-			while(ftl->GC_and_WL_Unit->Stop_servicing_slc_writes(targetAddress) == true)
-			{
-				if(slc_plane_counter > total_plane_num)
-				{
-					break;
-				}
-				targetAddress.ChannelID = domain->Channel_ids[(unsigned int)(round_robin_counter % domain->Channel_no)];
-				targetAddress.ChipID = domain->Chip_ids[(unsigned int)((round_robin_counter / domain->Channel_no) % domain->Chip_no)];
-				targetAddress.DieID = domain->Die_ids[(unsigned int)((round_robin_counter / (domain->Chip_no * domain->Channel_no)) % domain->Die_no)];
-				targetAddress.PlaneID = domain->Plane_ids[(unsigned int)((round_robin_counter / (domain->Die_no * domain->Chip_no * domain->Channel_no)) % domain->Plane_no)];
-				round_robin_counter = (round_robin_counter + 1) % total_plane_num;
-				slc_plane_counter++;
-			}
-		}
-		else if (flash_type == Flash_Technology_Type::TLC)
-		{
-			Plane_Program_Counter* program_counter = domain->program_counter_manager->plane_program_counters.front();
-			//using the novel allocation scheme optimized for one-shot programming TLC flash.
-			targetAddress.ChannelID = program_counter->channel_id;
-			targetAddress.ChipID = program_counter->chip_id;
-			targetAddress.DieID = program_counter->die_id;
-			targetAddress.PlaneID = program_counter->plane_id;
-			if (program_counter->Update() == true)
-			{
-				domain->program_counter_manager->Manage_counters();
-			}
-		}
-		else
-		{
-			std::cout << "Unsupported flash type in function allocate_plane_for_user_write" << std::endl;
-			std::cin.get();
-		}
-		*/
-		
 	}
 	void Address_Mapping_Unit_Page_Level::allocate_page_in_plane_for_user_write(NVM_Transaction_Flash_WR* transaction, bool is_for_gc)
 	{
@@ -1787,8 +1669,6 @@ namespace SSD_Components
 
 	void Address_Mapping_Unit_Page_Level::allocate_page_in_plane_for_user_write(NVM_Transaction_Flash_WR* transaction, bool is_for_gc, Flash_Technology_Type flash_type)
 	{
-		//std::cout << "Address_Mapping_Unit_Page_Level::allocate_page_in_plane_for_user_write" << std::endl;
-		//std::cout << "+++Ready to allocate_page_in_plane_for_user_write" << std::endl;
 		AddressMappingDomain* domain = domains[transaction->Stream_id];
 		PPA_type old_ppa = domain->Get_ppa(ideal_mapping_table, transaction->Stream_id, transaction->LPA);
 		if (print_page_allocation_info == true)
@@ -1841,7 +1721,6 @@ namespace SSD_Components
 				}
 			}
 		}
-		//std::cout << ">Address_Mapping_Unit_Page_Level::allocate_page_in_plane_for_user_write" << std::endl;
 		/*The following lines should not be ordered with respect to the block_manager->Invalidate_page_in_block
 		* function call in the above code blocks. Otherwise, GC may be invoked (due to the call to Allocate_block_....) and
 		* may decide to move a page that is just invalidated.*/
@@ -1851,14 +1730,6 @@ namespace SSD_Components
 		{
 			if (block_manager->Allocate_slc_block_and_page_in_plane_for_user_write(transaction->Stream_id, transaction->Address) == false)
 			{
-				/*
-				allocate_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction, Flash_Technology_Type::TLC);
-				if (ftl->GC_and_WL_Unit->Stop_servicing_writes(transaction->Address))//there are too few free pages remaining only for GC
-				{
-					//std::cout << "It is RIDICULARS that I should stop_servicing_writes" << std::endl;
-					return false;
-				}
-				*/
 				std::cout << "This should not be happen! Because there should be free slc pages in the plane! " << std::endl;
 				std::cin.get();
 				block_manager->Allocate_tlc_block_and_page_in_plane_for_user_write(transaction->Stream_id, transaction->Address);
@@ -1869,16 +1740,11 @@ namespace SSD_Components
 			block_manager->Allocate_tlc_block_and_page_in_plane_for_user_write(transaction->Stream_id, transaction->Address);
 		}
 		
-		/*
-		else
-			block_manager->Allocate_block_and_page_in_plane_for_user_write(transaction->Stream_id, transaction->Address, flash_type);
-		*/
 		transaction->PPA = Convert_address_to_ppa(transaction->Address);
 		if (print_page_allocation_info == true)
 			std::cout << "NEW_PPA: " << transaction->PPA << ", " << transaction->Address.ChannelID << ":" << transaction->Address.ChipID << ":" << transaction->Address.DieID << ":" << transaction->Address.PlaneID << ":" << transaction->Address.BlockID << ":" << transaction->Address.PageID << std::endl;
 		domain->Update_mapping_info(ideal_mapping_table, transaction->Stream_id, transaction->LPA, transaction->PPA,
 			((NVM_Transaction_Flash_WR*)transaction)->write_sectors_bitmap | domain->Get_page_status(ideal_mapping_table, transaction->Stream_id, transaction->LPA));
-		//std::cout << ">>Address_Mapping_Unit_Page_Level::allocate_page_in_plane_for_user_write" << std::endl;
 	}
 
 	void Address_Mapping_Unit_Page_Level::allocate_plane_for_translation_write(NVM_Transaction_Flash* transaction)
@@ -1909,7 +1775,6 @@ namespace SSD_Components
 	}
 	PPA_type Address_Mapping_Unit_Page_Level::online_create_entry_for_reads(LPA_type lpa, const stream_id_type stream_id, NVM::FlashMemory::Physical_Page_Address& read_address, uint64_t read_sectors_bitmap)
 	{
-		//std::cout << "Address_Mapping_Unit_Page_Level::online_create_entry_for_reads" << std::endl;
 		AddressMappingDomain* domain = domains[stream_id];
 		if (allocation_policy == Allocation_Policy::PARALLELISM_FIRST)
 		{
@@ -2086,12 +1951,10 @@ namespace SSD_Components
 		Stats::UserTLCWriteCount_per_stream[stream_id]--;
 		block_manager->Program_transaction_serviced(read_address);
 		flash_controller->Write_metadata_flash_controller(lpa, read_address.ChannelID, read_address.ChipID, read_address.DieID, read_address.PlaneID, read_address.BlockID, read_address.PageID);
-		//std::cout << "  a TLC page is used for read request." << std::endl;
 		PPA_type ppa = Convert_address_to_ppa(read_address);
 		if (print_page_allocation_info == true)
 			std::cout << "LPA: " << lpa << ", OLD_PPA_FR: NO_PPA, , " << "NEW_PPA: " << ppa << ", " << read_address.ChannelID << ":" << read_address.ChipID << ":" << read_address.DieID << ":" << read_address.PlaneID << ":" << read_address.BlockID << ":" << read_address.PageID << std::endl;
 		domain->Update_mapping_info(ideal_mapping_table, stream_id, lpa, ppa, read_sectors_bitmap);
-		//std::cout << "Address_Mapping_Unit_Page_Level::online_create_entry_for_reads" << std::endl;
 		return ppa;
 	}
 
@@ -2170,8 +2033,6 @@ namespace SSD_Components
 			address.BlockID = (flash_block_ID_type)((((((ppn % page_no_per_channel) % page_no_per_chip) % page_no_per_die) % page_no_per_plane) - this->slc_block_no_per_plane * this->page_no_per_slc_block) / pages_no_per_block + this->slc_block_no_per_plane);
 			address.PageID = (flash_block_ID_type)(((((ppn % page_no_per_channel) % page_no_per_chip) % page_no_per_die) % page_no_per_plane) - this->slc_block_no_per_plane * this->page_no_per_slc_block) % pages_no_per_block;
 		}
-		//address.BlockID = (flash_block_ID_type)(((((ppn % page_no_per_channel) % page_no_per_chip) % page_no_per_die) % page_no_per_plane) / pages_no_per_block);
-		//address.PageID = (flash_page_ID_type)((((((ppn % page_no_per_channel) % page_no_per_chip) % page_no_per_die) % page_no_per_plane) % pages_no_per_block) % pages_no_per_block);
 	}
 	inline PPA_type Address_Mapping_Unit_Page_Level::Convert_address_to_ppa(const NVM::FlashMemory::Physical_Page_Address& pageAddress)
 	{
@@ -2183,19 +2044,11 @@ namespace SSD_Components
 		}
 		else
 		{
-			//std::cout << (PPA_type)this->page_no_per_chip * (PPA_type)(pageAddress.ChannelID * this->chip_no_per_channel + pageAddress.ChipID) + (PPA_type)(this->page_no_per_die * pageAddress.DieID) + (PPA_type)(this->page_no_per_plane * pageAddress.PlaneID) << std::endl;
-			//std::cout << (PPA_type)(this->page_no_per_slc_block * this->slc_block_no_per_plane) << std::endl;
-			//std::cout << (PPA_type)(this->pages_no_per_block * ((PPA_type)pageAddress.BlockID - (PPA_type)this->page_no_per_slc_block)) + (PPA_type)pageAddress.PageID << std::endl;
 			return (PPA_type)this->page_no_per_chip * (PPA_type)(pageAddress.ChannelID * this->chip_no_per_channel + pageAddress.ChipID)
 				+ (PPA_type)(this->page_no_per_die * pageAddress.DieID) + (PPA_type)(this->page_no_per_plane * pageAddress.PlaneID)
 				+ (PPA_type)(this->page_no_per_slc_block * this->slc_block_no_per_plane)
 				+ (PPA_type)(this->pages_no_per_block * ((PPA_type)pageAddress.BlockID - (PPA_type)this->slc_block_no_per_plane)) + (PPA_type)pageAddress.PageID;
 		}
-		/*
-		return (PPA_type)this->page_no_per_chip * (PPA_type)(pageAddress.ChannelID * this->chip_no_per_channel + pageAddress.ChipID)
-			+ this->page_no_per_die * pageAddress.DieID + this->page_no_per_plane * pageAddress.PlaneID
-			+ this->pages_no_per_block * pageAddress.BlockID + pageAddress.PageID;
-			*/
 	}
 
 	bool Address_Mapping_Unit_Page_Level::request_mapping_entry(const stream_id_type stream_id, const LPA_type lpa)
@@ -2517,12 +2370,6 @@ namespace SSD_Components
 		if (itr != domains[stream_id]->Locked_LPAs.end())
 			PRINT_ERROR("Illegal operation: Locking an LPA that has already been locked!");
 		domains[stream_id]->Locked_LPAs.insert(lpa);
-		/*
-		if (lpa == 2846734)
-		{
-			std::cout << std::endl << "!!! the barrier for target lpa " << lpa << " is set." << std::endl << std::endl;
-		}
-		*/
 	}
 	inline void Address_Mapping_Unit_Page_Level::Set_barrier_for_accessing_mvpn(stream_id_type stream_id, MVPN_type mvpn)
 	{
@@ -2537,14 +2384,11 @@ namespace SSD_Components
 		//Barrier is unused....
 		//*ZWH*
 		//The LPAs are actually not known until they are read one-by-one from flash storage. But, to reduce MQSim's complexity, we assume that LPAs are stored in DRAM and thus no read from flash storage is needed.
-		//std::cout << "Address_Mapping_Unit_Page_Level::Set_barrier_for_accessing_physical_block" << std::endl;
 		Block_Pool_Slot_Type* block = &(block_manager->plane_manager[block_address.ChannelID][block_address.ChipID][block_address.DieID][block_address.PlaneID].Blocks[block_address.BlockID]);
 		block->Check_Block_Metadata();
 		NVM::FlashMemory::Physical_Page_Address addr(block_address);
-		//std::cout << "Current_page_write_index: " << block->Current_page_write_index << std::endl;
 		for (flash_page_ID_type pageID = 0; pageID < block->Current_page_write_index; pageID++)
 		{
-			//std::cout << "    handling page " << pageID << std::endl;
 			if (block_manager->Is_page_valid(block, pageID))
 			{
 				addr.PageID = pageID;
@@ -2560,12 +2404,9 @@ namespace SSD_Components
 					LPA_type lpa = flash_controller->Get_metadata(addr.ChannelID, addr.ChipID, addr.DieID, addr.PlaneID, addr.BlockID, addr.PageID);
 					if (lpa == 0xffffffffffffffffULL)
 					{
-						//std::cout << "A block with empty page is selected to GC..." << std::endl;
 						std::cout << "GC_Moving_Empty_page, " << addr.ChannelID << ":" << addr.ChipID << ":" << addr.DieID << ":" << addr.PlaneID << ":" << addr.BlockID << ":" << addr.PageID << std::endl;
-						//std::cin.get();
 						continue;
 					}
-					//std::cout << "Trying to lock lpa " << lpa << " of stream " << block->Stream_id << " in " << addr.ChannelID << ":" << addr.ChipID << ":" << addr.DieID << ":" << addr.PlaneID << ":" << addr.BlockID << ":" << addr.PageID << std::endl;
 					LPA_type ppa = domains[block->Stream_id]->GlobalMappingTable[lpa].PPA;
 					if (domains[block->Stream_id]->CMT->Exists(block->Stream_id, lpa))
 						ppa = domains[block->Stream_id]->CMT->Retrieve_ppa(block->Stream_id, lpa);
@@ -2575,7 +2416,6 @@ namespace SSD_Components
 				}
 			}
 		}
-		//std::cout << "Address_Mapping_Unit_Page_Level::Set_barrier_for_accessing_physical_block" << std::endl;
 	}
 	inline void Address_Mapping_Unit_Page_Level::Remove_barrier_for_accessing_lpa(stream_id_type stream_id, LPA_type lpa)
 	{
@@ -2586,12 +2426,6 @@ namespace SSD_Components
 		if (itr == domains[stream_id]->Locked_LPAs.end())
 			PRINT_ERROR("Illegal operation: Unlocking an LPA that has not been locked!");
 		domains[stream_id]->Locked_LPAs.erase(itr);
-		/*
-		if (lpa == 2846734)
-		{
-			std::cout << std::endl << "!!! the barrier for target lpa is removed." << std::endl << std::endl;
-		}
-		*/
 
 		//If there are read requests waiting behind the barrier, then MQSim assumes they can be serviced with the actual page data that is accessed during GC execution
 		auto read_tr = domains[stream_id]->Read_transactions_behind_LPA_barrier.find(lpa);
@@ -2604,9 +2438,7 @@ namespace SSD_Components
 			Translate_lpa_to_ppa_and_dispatch(*transactionList);
 			*/
 			//handle_transaction_serviced_signal_from_PHY((*read_tr).second);
-			//std::cout << "********* Translate_lpa_to_ppa_and_dispatch for barried read transaction from request " << (*read_tr).second->UserIORequest->ID << std::endl;
 			Translate_lpa_to_ppa_and_dispatch((*read_tr).second->UserIORequest->Transaction_list);
-			//std::cout << "********* Translate_lpa_to_ppa_and_dispatch for barried read transaction from request " << (*read_tr).second->UserIORequest->ID << " Successed." << std::endl;
 			//*ZWH*
 			//delete (*read_tr).second;
 			domains[stream_id]->Read_transactions_behind_LPA_barrier.erase(read_tr);
@@ -2625,22 +2457,12 @@ namespace SSD_Components
 			Translate_lpa_to_ppa_and_dispatch(*transactionList);
 			*/
 			//handle_transaction_serviced_signal_from_PHY((*write_tr).second);
-			//std::cout << "********* Translate_lpa_to_ppa_and_dispatch for barried write transaction from request " << (*write_tr).second->UserIORequest->ID  << std::endl;
-			/*
-			if ((*write_tr).second->UserIORequest->ID == "4144728")
-			{
-				std::cout << std::endl << "Barrier for request " << (*write_tr).second->UserIORequest->ID << " is removed." << std::endl << std::endl;
-				std::cin.get();
-			}
-			*/
 			Translate_lpa_to_ppa_and_dispatch((*write_tr).second->UserIORequest->Transaction_list);
-			//std::cout << "********* Translate_lpa_to_ppa_and_dispatch for barried write transaction from request " << (*write_tr).second->UserIORequest->ID  << " Successed." << std::endl;
 			//*ZWH*
 			//delete (*write_tr).second;
 			domains[stream_id]->Write_transactions_behind_LPA_barrier.erase(write_tr);
 			write_tr = domains[stream_id]->Write_transactions_behind_LPA_barrier.find(lpa);
 		}
-		//std::cout << "Exiting Address_Mapping_Unit_Page_Level::Remove_barrier_for_accessing_lpa" << std::endl;
 	}
 	inline void Address_Mapping_Unit_Page_Level::Remove_barrier_for_accessing_mvpn(stream_id_type stream_id, MVPN_type mvpn)
 	{
@@ -2714,16 +2536,10 @@ namespace SSD_Components
 		if (transaction->Type == Transaction_Type::READ)
 		{
 			domains[transaction->Stream_id]->Read_transactions_behind_LPA_barrier.insert(entry);
-			//std::cout << std::endl;
-			//std::cout << "Read transactions behind barrier of stream: " << transaction->Stream_id << " is " << domains[transaction->Stream_id]->Read_transactions_behind_LPA_barrier.size() << std::endl;
-			//std::cout << "Oldest transacion is from request: " << domains[transaction->Stream_id]->Read_transactions_behind_LPA_barrier.begin()->second->UserIORequest->ID << std::endl << std::endl;
 		}
 		else
 		{
 			domains[transaction->Stream_id]->Write_transactions_behind_LPA_barrier.insert(entry);
-			//std::cout << std::endl;
-			//std::cout << "Write transactions behind barrier of stream: " << transaction->Stream_id << " is " << domains[transaction->Stream_id]->Write_transactions_behind_LPA_barrier.size() << std::endl;
-			//std::cout << "Oldest transacion is from request: " << domains[transaction->Stream_id]->Write_transactions_behind_LPA_barrier.begin()->second->UserIORequest->ID << std::endl << std::endl;
 			
 		}
 	}

@@ -164,7 +164,6 @@ namespace SSD_Components
 			address_mapping_unit->Set_barrier_for_accessing_physical_block(gc_candidate_address);//Lock the block, so no user request can intervene while the GC is progressing
 			if (block_manager->Can_execute_gc_wl(gc_candidate_address))//If there are ongoing requests targeting the candidate block, the gc execution should be postponed
 			{
-				//std::cout << "WARNING GC_REQUIRE...." << std::endl;
 				Stats::Total_gc_executions++;
 				tsu->Prepare_for_transaction_submit();
 
@@ -204,7 +203,6 @@ namespace SSD_Components
 				block->Erase_transaction = gc_erase_tr;
 				tsu->Submit_transaction(gc_erase_tr);
 				tsu->Schedule();
-				//std::cout << "===========GC Transactions are scheduled..." << std::endl;
 			}
 		}
 	}
@@ -217,7 +215,6 @@ namespace SSD_Components
 			unsigned int queued_requests_num, queued_transactions_num;
 			queued_requests_num = ((SSD_Components::Host_Interface_NVMe *)(address_mapping_unit->ftl->host_interface))->Return_queued_requests_num();
 			queued_transactions_num = ((SSD_Components::Host_Interface_NVMe *)(address_mapping_unit->ftl->host_interface))->Return_queued_transactions_num();
-			//std::cout << queued_requests_num << ":" << queued_transactions_num << std::endl;
 			int preserved_plane_num = total_plane_num - queued_transactions_num/3 - 5;
 			if (preserved_plane_num < 0)
 			{
@@ -339,13 +336,9 @@ namespace SSD_Components
 		
 
 		if (allow_data_migration == true)
-		//if (((SSD_Components::Host_Interface_NVMe *)(address_mapping_unit->ftl->host_interface))->Get_submission_queue_depth() < 10)
-		//if (free_slc_block_pool_size < slc_block_pool_gc_threshold)
 		{
 			flash_block_ID_type gc_candidate_block_id = block_manager->Get_coldest_slc_block_id(plane_address);
 			PlaneBookKeepingType* pbke = block_manager->Get_plane_bookkeeping_entry(plane_address);
-			//std::cout << "Data Migration IS REQUIRED!!!!! slc blocks: " << pbke->Get_free_slc_block_pool_size() << std::endl;
-			//std::cin.get();
 
 			if (pbke->Ongoing_slc_erase_operations.size() >= max_ongoing_gc_reqs_per_plane)
 				return;
@@ -354,20 +347,7 @@ namespace SSD_Components
 			{
 			case SSD_Components::GC_Block_Selection_Policy_Type::GREEDY://Find the set of blocks with maximum number of invalid pages and no free pages
 			{
-				//std::cout << "  GREEDY Policy is selected" << std::endl;
 				gc_candidate_block_id = 0;
-				/*
-				if (pbke->Ongoing_erase_operations.find(0) != pbke->Ongoing_erase_operations.end())
-					gc_candidate_block_id++;
-				for (flash_block_ID_type block_id = 1; block_id < slc_block_no_per_plane; block_id++)
-				{
-					//std::cout << "    checking block " << block_id << " " << pbke->Blocks[block_id].Invalid_page_count << std::endl;
-					if (pbke->Blocks[block_id].Invalid_page_count > pbke->Blocks[gc_candidate_block_id].Invalid_page_count
-						&& pbke->Blocks[block_id].Current_page_write_index == pages_no_per_slc_block
-						&& is_safe_gc_wl_candidate(pbke, block_id))
-						gc_candidate_block_id = block_id;
-				}
-				*/
 				for (flash_block_ID_type block_id = 0; block_id < slc_block_no_per_plane; block_id++)
 				{
 					if (pbke->Ongoing_slc_erase_operations.find(block_id) != pbke->Ongoing_slc_erase_operations.end())
@@ -397,7 +377,6 @@ namespace SSD_Components
 			}
 			case SSD_Components::GC_Block_Selection_Policy_Type::RGA:
 			{
-				//std::cout << "  RGA Policy is selected" << std::endl;
 				std::set<flash_block_ID_type> random_set;
 				while (random_set.size() < slc_rga_set_size)
 				{
@@ -457,8 +436,6 @@ namespace SSD_Components
 				break;
 			}
 			}
-
-			//std::cout << "  GC Policy is completed..." << std::endl;
 			
 			if (pbke->Ongoing_slc_erase_operations.find(gc_candidate_block_id) != pbke->Ongoing_slc_erase_operations.end())//This should never happen, but we check it here for safty
 				return;
@@ -470,7 +447,6 @@ namespace SSD_Components
 				return;
 			
 			//Run the state machine to protect against race condition
-			//std::cout << "SLC_DM_on, " << plane_address.ChannelID << ":" << plane_address.ChipID << ":" << plane_address.DieID << ":" << plane_address.PlaneID << ":" << block->BlockID << " is triggered." << std::endl;
 			block_manager->GC_WL_started(gc_candidate_address);
 			pbke->Ongoing_slc_erase_operations.insert(gc_candidate_block_id);
 			address_mapping_unit->Set_barrier_for_accessing_physical_block(gc_candidate_address);//Lock the block, so no user request can intervene while the GC is progressing
@@ -479,15 +455,11 @@ namespace SSD_Components
 			{
 				plane_num_doing_data_migration++;
 				pbke->Doing_data_migration = true;
-				//std::cout << preserved_plane_num << ":" << plane_num_doing_data_migration << std::endl;
 			}
 			pbke->Triggered_data_migration++;
-			//std::cout << "Plane " << plane_address.ChannelID << ":" << plane_address.ChipID << ":" << plane_address.DieID << ":" << plane_address.PlaneID << " is chosen. " << pbke->Triggered_data_migration << std::endl;
-			//std::cout << "  target block is locked" << std::endl;
 
 			if (block_manager->Can_execute_gc_wl(gc_candidate_address))//If there are ongoing requests targeting the candidate block, the gc execution should be postponed
 			{
-				//std::cout << "WARNING GC_REQUIRE...." << std::endl;
 				Stats::Total_gc_executions++;
 				Stats::Data_migration_executions++;
 				tsu->Prepare_for_transaction_submit();
@@ -531,15 +503,12 @@ namespace SSD_Components
 				block->Erase_transaction = gc_erase_tr;
 				tsu->Submit_transaction(gc_erase_tr);
 				tsu->Schedule();
-				//std::cout << "=========== One block with " << valid_page_count <<" valid pages is chosen to data migration" << std::endl;
 			}
-			//std::cout << "exit Check_data_migration_required Successed" << std::endl;
 		}
 	}
 
 	void GC_and_WL_Unit_Page_Level::Try_check_data_migration_required()
 	{
-		//std::cout << "***Try data migration during IDLE period..." << std::endl;
 		unsigned int rand_plane = rand() % plane_no_per_die;
 		unsigned int rand_die = rand() % die_no_per_chip;
 		unsigned int rand_chip = rand() % chip_no_per_channel;
@@ -567,7 +536,6 @@ namespace SSD_Components
 		if (block_manager->Is_data_migration_needed() == true && Consecutive_dm_num < 100)
 		{
 			Simulator->Register_sim_event(Simulator->Time()+500000000, this, NULL, 0);
-			//std::cout << "DM event is registered." << std::endl;
 		}
 		else
 		{
@@ -580,8 +548,6 @@ namespace SSD_Components
 	{
 		if (free_tlc_block_pool_size < tlc_block_pool_gc_threshold)
 		{
-			//std::cout << "TLC GC IS REQUIRED!!!!!" << std::endl;
-			//std::cin.get();
 			flash_block_ID_type gc_candidate_block_id = block_manager->Get_coldest_tlc_block_id(plane_address);
 			PlaneBookKeepingType* pbke = block_manager->Get_plane_bookkeeping_entry(plane_address);
 
@@ -593,20 +559,7 @@ namespace SSD_Components
 			{
 			case SSD_Components::GC_Block_Selection_Policy_Type::GREEDY://Find the set of blocks with maximum number of invalid pages and no free pages
 			{
-				//std::cout << "  GREEDY Policy is selected" << std::endl;
 				gc_candidate_block_id = 0;
-				/*
-				if (pbke->Ongoing_erase_operations.find(0) != pbke->Ongoing_erase_operations.end())
-					gc_candidate_block_id++;
-				for (flash_block_ID_type block_id = slc_block_no_per_plane; block_id < block_no_per_plane; block_id++)
-				{
-					//std::cout << "    checking block " << block_id << " " << pbke->Blocks[block_id].Invalid_page_count << std::endl;
-					if (pbke->Blocks[block_id].Invalid_page_count > pbke->Blocks[gc_candidate_block_id].Invalid_page_count
-						&& pbke->Blocks[block_id].Current_page_write_index == pages_no_per_tlc_block
-						&& is_safe_gc_wl_candidate(pbke, block_id))
-						gc_candidate_block_id = block_id;
-				}
-				*/
 				for (flash_block_ID_type block_id = slc_block_no_per_plane; block_id < block_no_per_plane; block_id++)
 				{
 					if (pbke->Ongoing_erase_operations.find(block_id) != pbke->Ongoing_erase_operations.end())
@@ -636,7 +589,6 @@ namespace SSD_Components
 			}
 			case SSD_Components::GC_Block_Selection_Policy_Type::RGA:
 			{
-				//std::cout << "  RGA Policy is selected" << std::endl;
 				std::set<flash_block_ID_type> random_set;
 				while (random_set.size() < tlc_rga_set_size)
 				{
@@ -697,8 +649,6 @@ namespace SSD_Components
 				break;
 			}
 			}
-
-			//std::cout << "  GC Policy is completed..." << std::endl;
 			
 			if (pbke->Ongoing_erase_operations.find(gc_candidate_block_id) != pbke->Ongoing_erase_operations.end())//This should never happen, but we check it here for safty
 				return;
@@ -711,7 +661,6 @@ namespace SSD_Components
 			Block_Pool_Slot_Type* block = &pbke->Blocks[gc_candidate_block_id];
 			if (block->Current_page_write_index == 0 || block->Invalid_page_count == 0)//No invalid page to erase
 				return;
-			//std::cout << "TLC_GC_on, " << plane_address.ChannelID << ":" << plane_address.ChipID << ":" << plane_address.DieID << ":" << plane_address.PlaneID << ":" << block->BlockID << " is triggered." << std::endl;
 			//Run the state machine to protect against race condition
 			block_manager->GC_WL_started(gc_candidate_address);
 			pbke->Ongoing_erase_operations.insert(gc_candidate_block_id);
@@ -723,11 +672,9 @@ namespace SSD_Components
 			{
 				pbke->Data_migration_should_be_terminated = true;
 			}
-			//std::cout << "  target block is locked" << std::endl;
 
 			if (block_manager->Can_execute_gc_wl(gc_candidate_address))//If there are ongoing requests targeting the candidate block, the gc execution should be postponed
 			{
-				//std::cout << "WARNING GC_REQUIRE...." << std::endl;
 				Stats::Total_gc_executions++;
 				Stats::Tlc_gc_executions++;
 				tsu->Prepare_for_transaction_submit();
@@ -770,10 +717,7 @@ namespace SSD_Components
 				block->Erase_transaction = gc_erase_tr;
 				tsu->Submit_transaction(gc_erase_tr);
 				tsu->Schedule();
-				//std::cout << "=========== One block with " << valid_page_count <<" valid pages is chosen to data migration" << std::endl;
 			}
-			//std::cout << "exit Check_data_migration_required Successed" << std::endl;
-			
 		}
 	}
 }

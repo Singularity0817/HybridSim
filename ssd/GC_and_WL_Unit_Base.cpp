@@ -96,11 +96,9 @@ namespace SSD_Components
 			{
 			case Transaction_Type::READ:
 				_my_instance->block_manager->Read_transaction_serviced(transaction->Address);
-				//std::cout << "LPA: " << transaction->LPA << " is read by chip " << Simulator->Time() << std::endl;
 				break;
 			case Transaction_Type::WRITE:
 				_my_instance->block_manager->Program_transaction_serviced(transaction->Address);
-				//std::cout << "LPA: " << transaction->LPA << " is programmed by chip " << Simulator->Time() << std::endl;
 				break;
 			default:
 				PRINT_ERROR("Unexpected situation in the GC_and_WL_Unit_Base function!")
@@ -108,7 +106,6 @@ namespace SSD_Components
 			if (_my_instance->block_manager->Block_has_ongoing_gc_wl(transaction->Address))
 				if (_my_instance->block_manager->Can_execute_gc_wl(transaction->Address))
 				{
-					//std::cout << "Entering_secrect_zone_for: " << transaction->Address.ChannelID << ":" << transaction->Address.ChipID << ":" << transaction->Address.DieID << ":" << transaction->Address.PlaneID << ":" << transaction->Address.BlockID << std::endl;
 					NVM::FlashMemory::Physical_Page_Address gc_wl_candidate_address(transaction->Address);
 					Block_Pool_Slot_Type* block = &pbke->Blocks[transaction->Address.BlockID];
 					_my_instance->tsu->Prepare_for_transaction_submit();
@@ -147,7 +144,6 @@ namespace SSD_Components
 					}
 					block->Erase_transaction = gc_wl_erase_tr;
 					_my_instance->tsu->Schedule();
-					//std::cout << "  Exit function handle_transaction_serviced_signal_from_PHY in GC_and_WL_Unit_Base.cpp" << std::endl;
 				}
 			return;
 		}
@@ -198,12 +194,6 @@ namespace SSD_Components
 			break;
 		}
 		case Transaction_Type::WRITE:
-			/*
-			if (transaction->LPA == 2846734)
-			{
-				std::cout << "Target LPA is moved to target position... " << transaction->LPA << std::endl;
-			}
-			*/
 			if (pbke->Blocks[((NVM_Transaction_Flash_WR*)transaction)->RelatedErase->Address.BlockID].Holds_mapping_data)
 			{
 				_my_instance->address_mapping_unit->Remove_barrier_for_accessing_mvpn(transaction->Stream_id, (MVPN_type)transaction->LPA);
@@ -218,7 +208,6 @@ namespace SSD_Components
 			pbke->Blocks[((NVM_Transaction_Flash_WR*)transaction)->RelatedErase->Address.BlockID].Erase_transaction->Page_movement_activities.remove((NVM_Transaction_Flash_WR*)transaction);
 			break;
 		case Transaction_Type::ERASE:
-			//std::cout << "erase operation back to GC_and_WL_Unit_Base" << std::endl;
 			if (pbke->Blocks[transaction->Address.BlockID].Flash_type == Flash_Technology_Type::SLC)
 				pbke->Ongoing_slc_erase_operations.erase(pbke->Ongoing_slc_erase_operations.find(transaction->Address.BlockID));
 			else
@@ -232,7 +221,6 @@ namespace SSD_Components
 			if (_my_instance->Stop_servicing_writes(transaction->Address))
 			{
 				std::cout << "Something happened in GC_andWL_Unit_Base.cpp handle_transaction_serviced_signal_from..." << std::endl;
-				//_my_instance->Check_gc_required(pbke->Get_free_block_pool_size(), transaction->Address);
 				_my_instance->Check_tlc_gc_required(pbke->Get_free_block_pool_size(), transaction->Address);
 			}
 			break;
@@ -245,7 +233,6 @@ namespace SSD_Components
 
 	void GC_and_WL_Unit_Base::Execute_simulator_event(MQSimEngine::Sim_Event* ev) 
 	{
-		//std::cout << "IDLE_Check***" << std::endl;
 		if (Simulator->Time() - Simulator->Last_request_triggerred_time >= dm_interval)
 			Try_check_data_migration_required();
 	}
@@ -270,17 +257,11 @@ namespace SSD_Components
 	unsigned int GC_and_WL_Unit_Base::Get_minimum_number_of_free_pages_before_GC()
 	{
 		return block_pool_gc_threshold;
-		/*if (preemptible_gc_enabled)
-			return block_pool_gc_hard_threshold;
-		else return block_pool_gc_threshold;*/
 	}
 
 	unsigned int GC_and_WL_Unit_Base::Get_minimum_number_of_free_tlc_pages_before_GC()
 	{
 		return tlc_block_pool_gc_threshold;
-		/*if (preemptible_gc_enabled)
-			return block_pool_gc_hard_threshold;
-		else return block_pool_gc_threshold;*/
 	}
 
 	bool GC_and_WL_Unit_Base::Use_dynamic_wearleveling()
@@ -309,7 +290,6 @@ namespace SSD_Components
 		*/
 		if (Is_doing_data_migration(plane_address) == true)
 		{
-			//std::cout << "plane" << plane_address.ChannelID << ":" << plane_address.ChipID << ":" << plane_address.DieID << ":" << plane_address.PlaneID << " stop serving slc due to data migration." << std::endl;
 			return true;
 		}
 		PlaneBookKeepingType* pbke = &(_my_instance->block_manager->plane_manager[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID]);
@@ -323,7 +303,6 @@ namespace SSD_Components
 			Check_data_migration_required(pbke->Get_free_slc_block_pool_size(), plane_address);
 			return true;
 		}
-		//return pbke->Get_free_slc_page_number() == 0;
 	}
 
 	bool GC_and_WL_Unit_Base::Is_doing_data_migration(const NVM::FlashMemory::Physical_Page_Address& plane_address)

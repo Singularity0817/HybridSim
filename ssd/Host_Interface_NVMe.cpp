@@ -88,8 +88,6 @@ namespace SSD_Components
 		}
 		Simulator->Last_request_triggerred_time = request->STAT_InitiationTime;
 		host_interface->Go_check_data_migration();
-		//Simulator->Register_sim_event(Simulator->Time()+dm_interval, ((FTL*)(host_interface->nvm_firmware))->GC_and_WL_Unit, NULL, 0);
-		//std::cout << "**R " << Recieved_requests_count << " : " << Recieved_read_requests_count << " : " << Recieved_write_requests_count << std::endl;
 	}
 
 	inline void Input_Stream_Manager_NVMe::Handle_arrived_write_data(User_Request* request)

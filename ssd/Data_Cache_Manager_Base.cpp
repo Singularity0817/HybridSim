@@ -68,7 +68,6 @@ namespace SSD_Components
 
 	void Data_Cache_Manager_Base::Request_data_migration_check()
 	{
-		//std::cout << "registering gc event" << std::endl;
 		Simulator->Register_sim_event(Simulator->Time()+2000000000, ((FTL*)(this->nvm_firmware))->GC_and_WL_Unit, NULL, 0);
 	}
 

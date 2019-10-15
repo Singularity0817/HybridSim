@@ -144,7 +144,6 @@ namespace NVM
 		
 		void Flash_Chip::Execute_simulator_event(MQSimEngine::Sim_Event* ev)
 		{
-			//std::cout << "Flash_Chip::Execute_simulator_event" << std::endl;
 			Chip_Sim_Event_Type eventType = (Chip_Sim_Event_Type)ev->Type;
 			Flash_Command* command = (Flash_Command*)ev->Parameters;
 
@@ -176,7 +175,6 @@ namespace NVM
 
 		void Flash_Chip::start_command_execution(Flash_Command* command)
 		{
-			//std::cout << "---Initializing command execution started on channel: " << this->ChannelID << " chip: " << this->ChipID << " die: " << command->Address[0].DieID << " plane: " << command->Address[0].PlaneID << std::endl;
 			Die* targetDie = Dies[command->Address[0].DieID];
 
 			//If this is a simple command (not multiplane) then there should be only one address
@@ -200,7 +198,6 @@ namespace NVM
 				status = Internal_Status::BUSY;
 			}
 			
-			//std::cout << "------ Command execution started on channel: " << this->ChannelID << " chip: " << this->ChipID << " die: " << command->Address[0].DieID << " plane: " << command->Address[0].PlaneID << std::endl;
 			DEBUG("Command execution started on channel: " << this->ChannelID << " chip: " << this->ChipID)
 		}
 
@@ -241,33 +238,26 @@ namespace NVM
 			case CMD_PROGRAM_PAGE_COPYBACK:
 			case CMD_PROGRAM_PAGE_COPYBACK_MULTIPLANE:
 			case CMD_PROGRAM_SLC:
-				//std::cout << "Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing program command" << std::endl;
 				DEBUG("Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing program command")
 				for (unsigned int planeCntr = 0; planeCntr < command->Address.size(); planeCntr++)
 				{
 					STAT_progamCount++;
 					targetDie->Planes[command->Address[planeCntr].PlaneID]->Progam_count++;
 					targetDie->Planes[command->Address[planeCntr].PlaneID]->Blocks[command->Address[planeCntr].BlockID]->Pages[command->Address[planeCntr].PageID].Write_metadata(command->Meta_data[planeCntr]);
-					//std::cout << "Metadata_write: " << command->Meta_data[planeCntr].LPA << ", to " << command->Address[planeCntr].ChannelID << ":" << command->Address[planeCntr].ChipID << ":" << command->Address[planeCntr].DieID << ":" << command->Address[planeCntr].PlaneID << ":" << command->Address[planeCntr].BlockID << ":" << command->Address[planeCntr].PageID << std::endl;
 				}
-				//std::cout << "One program operation is finished..." << std::endl;
 				break;
 			case CMD_PROGRAM_ONESHOT:
-				//std::cout << "Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing program command" << std::endl;
 				DEBUG("Channel " << this->ChannelID << " Chip " << this->ChipID << "- Finished executing program command")
 				for (unsigned int pageCntr = 0; pageCntr < command->Address.size(); pageCntr++)
 				{
 					STAT_progamCount++;
 					targetDie->Planes[command->Address[pageCntr].PlaneID]->Progam_count++;
 					targetDie->Planes[command->Address[pageCntr].PlaneID]->Blocks[command->Address[pageCntr].BlockID]->Pages[command->Address[pageCntr].PageID].Write_metadata(command->Meta_data[pageCntr]);
-					//std::cout << "Metadata_write: " << command->Meta_data[pageCntr].LPA << ", to " << command->Address[pageCntr].ChannelID << ":" << command->Address[pageCntr].ChipID << ":" << command->Address[pageCntr].DieID << ":" << command->Address[pageCntr].PlaneID << ":" << command->Address[pageCntr].BlockID << ":" << command->Address[pageCntr].PageID << std::endl;
 				}
-				//std::cout << "One program operation is finished..." << std::endl;
 				break;
 			case CMD_ERASE_BLOCK:
 			case CMD_ERASE_BLOCK_MULTIPLANE:
 			{
-				//std::cout << "erase operation fininshed in Flash_Chip" << std::endl;
 				for (unsigned int planeCntr = 0; planeCntr < command->Address.size(); planeCntr++)
 				{
 					STAT_eraseCount++;
@@ -280,7 +270,6 @@ namespace NVM
 							//targetBlock->Pages[i].Metadata.SourceStreamID = NO_STREAM;
 							//targetBlock->Pages[i].Metadata.Status = FREE_PAGE;
 							targetBlock->Pages[i].Metadata.LPA = NO_LPA;
-							//std::cout << "Meta_data_erase: " << "NO_LPA, to " << command->Address[planeCntr].ChannelID << ":" << command->Address[planeCntr].ChipID << ":" << command->Address[planeCntr].DieID << ":" << command->Address[planeCntr].PlaneID << ":" << command->Address[planeCntr].BlockID << ":" << i << std::endl;
 						}
 					}
 					else
@@ -290,17 +279,8 @@ namespace NVM
 							//targetBlock->Pages[i].Metadata.SourceStreamID = NO_STREAM;
 							//targetBlock->Pages[i].Metadata.Status = FREE_PAGE;
 							targetBlock->Pages[i].Metadata.LPA = NO_LPA;
-							//std::cout << "Meta_data_erase: " << "NO_LPA, to " << command->Address[planeCntr].ChannelID << ":" << command->Address[planeCntr].ChipID << ":" << command->Address[planeCntr].DieID << ":" << command->Address[planeCntr].PlaneID << ":" << command->Address[planeCntr].BlockID << ":" << i << std::endl;
 						}
 					}
-					/*
-					for (unsigned int i = 0; i < page_no_per_block; i++)
-					{
-						//targetBlock->Pages[i].Metadata.SourceStreamID = NO_STREAM;
-						//targetBlock->Pages[i].Metadata.Status = FREE_PAGE;
-						targetBlock->Pages[i].Metadata.LPA = NO_LPA;
-					}
-					*/
 				}
 				break;
 			}

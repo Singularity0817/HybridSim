@@ -125,7 +125,6 @@ namespace SSD_Components {
 	
 	void NVM_PHY_ONFI_NVDDR2::Send_command_to_chip(std::list<NVM_Transaction_Flash*>& transaction_list)
 	{
-		//std::cout << "Sending command to chip, NVM_PHY_ONFI_NVDDR2::Send_command_to_chip" << std::endl;
 		if (transaction_list.size() == 0)
 		{
 			std::cout << "The transaction_list is EMPTY!!!" << std::endl;
@@ -236,7 +235,6 @@ namespace SSD_Components {
 				{
 					Stats::IssuedTLCProgramCMD++;
 					dieBKE->ActiveCommand->CommandCode = CMD_PROGRAM_ONESHOT;
-					//std::cout << "Chip " << targetChip->ChannelID << ", " << targetChip->ChipID << ", " << transaction_list.front()->Address.DieID << ": Sending ONE-SHOT program command to chip for LPA: " << transaction_list.front()->LPA << std::endl;
 					DEBUG("Chip " << targetChip->ChannelID << ", " << targetChip->ChipID << ", " << transaction_list.front()->Address.DieID << ": Sending one-shot program command to chip for LPA: " << transaction_list.front()->LPA)
 				}
 				else
@@ -365,8 +363,6 @@ namespace SSD_Components {
 
 	void NVM_PHY_ONFI_NVDDR2::Execute_simulator_event(MQSimEngine::Sim_Event* ev)
 	{
-		//std::cout << "NVM_PHY_ONFI_NVDDR2::Execute_simulator_event" << std::endl;
-		//std::cout << "Executing NVM_PHY_ONFI_NVDDR2 events..." << std::endl;
 		DieBookKeepingEntry* dieBKE = (DieBookKeepingEntry*)ev->Parameters;
 		flash_channel_ID_type channel_id = dieBKE->ActiveTransactions.front()->Address.ChannelID;
 		ONFI_Channel_NVDDR2* targetChannel = channels[channel_id];
@@ -414,8 +410,6 @@ namespace SSD_Components {
 			break;
 		case NVDDR2_SimEventType::PROGRAM_CMD_ADDR_DATA_TRANSFERRED:
 		case NVDDR2_SimEventType::PROGRAM_COPYBACK_CMD_ADDR_TRANSFERRED:
-			//DEBUG2("Chip " << targetChip->ChannelID << ", " << targetChip->ChipID << ", " << dieBKE->ActiveTransactions.front()->Address.DieID <<  ": PROGRAM_CMD_ADDR_DATA_TRANSFERRED " )
-			//std::cout << "Chip " << targetChip->ChannelID << ", " << targetChip->ChipID << ", " << dieBKE->ActiveTransactions.front()->Address.DieID <<  ": PROGRAM_CMD_ADDR_DATA_TRANSFERRED " << std::endl;
 			targetChip->EndCMDDataInXfer(dieBKE->ActiveCommand);
 			for (auto &tr : dieBKE->ActiveTransactions)
 				tr->STAT_execution_time = dieBKE->Expected_finish_time - Simulator->Time();
@@ -530,7 +524,6 @@ namespace SSD_Components {
 
 	inline void NVM_PHY_ONFI_NVDDR2::handle_ready_signal_from_chip(NVM::FlashMemory::Flash_Chip* chip, NVM::FlashMemory::Flash_Command* command)
 	{
-		//std::cout << "NVM_PHY_ONFI_NVDDR2::handle_ready_signal_from_chip" << std::endl;
 		ChipBookKeepingEntry *chipBKE = &_my_instance->bookKeepingTable[chip->ChannelID][chip->ChipID];
 		DieBookKeepingEntry *dieBKE = &(chipBKE->Die_book_keeping_records[command->Address[0].DieID]);
 
@@ -639,7 +632,6 @@ namespace SSD_Components {
 		}
 		case CMD_ERASE_BLOCK:
 		case CMD_ERASE_BLOCK_MULTIPLANE:
-			//std::cout << "erase operation back to NVM_PHY_ONFI_NVDDR2" << std::endl;
 			DEBUG("Chip " << chip->ChannelID << ", " << chip->ChipID << ": finished erase command")
 			for (std::list<NVM_Transaction_Flash*>::iterator it = dieBKE->ActiveTransactions.begin();
 				it != dieBKE->ActiveTransactions.end(); it++)

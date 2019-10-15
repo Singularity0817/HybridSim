@@ -167,26 +167,6 @@ namespace SSD_Components
 								plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Invalid_page_bitmap[i] = All_VALID_PAGE;
 							plane_manager[channelID][chipID][dieID][planeID].Add_to_free_tlc_block_pool(&plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID], false);
 						}
-						/*
-						for (unsigned int blockID = 0; blockID < block_no_per_plane; blockID++)//Initialize block pool for plane
-						{
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].BlockID = blockID;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Current_page_write_index = 0;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Current_status = Block_Service_Status::IDLE;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Invalid_page_count = 0;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Erase_count = 0;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Holds_mapping_data = false;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Has_ongoing_gc_wl = false;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Erase_transaction = NULL;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Ongoing_user_program_count = 0;
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Ongoing_user_read_count = 0;
-							Block_Pool_Slot_Type::Page_vector_size = pages_no_per_block / (sizeof(uint64_t) * 8) + (pages_no_per_block % (sizeof(uint64_t) * 8) == 0 ? 0 : 1);
-							plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Invalid_page_bitmap = new uint64_t[Block_Pool_Slot_Type::Page_vector_size];
-							for (unsigned int i = 0; i < Block_Pool_Slot_Type::Page_vector_size; i++)
-								plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID].Invalid_page_bitmap[i] = All_VALID_PAGE;
-							plane_manager[channelID][chipID][dieID][planeID].Add_to_free_block_pool(&plane_manager[channelID][chipID][dieID][planeID].Blocks[blockID], false);
-						}
-						*/
 						plane_manager[channelID][chipID][dieID][planeID].Data_wf = new Block_Pool_Slot_Type*[total_concurrent_streams_no];
 						plane_manager[channelID][chipID][dieID][planeID].Translation_wf = new Block_Pool_Slot_Type*[total_concurrent_streams_no];
 						plane_manager[channelID][chipID][dieID][planeID].GC_wf = new Block_Pool_Slot_Type*[total_concurrent_streams_no];
@@ -196,8 +176,6 @@ namespace SSD_Components
 						//*ZWH*
 						for (unsigned int stream_cntr = 0; stream_cntr < total_concurrent_streams_no; stream_cntr++)
 						{
-							//plane_manager[channelID][chipID][dieID][planeID].Data_wf[stream_cntr] = plane_manager[channelID][chipID][dieID][planeID].Get_a_free_block(stream_cntr, false);
-							//std::cout << "Allocating blocks in " << channelID << ":"<< chipID << ":"<< dieID << ":"<< planeID << " for stream " << stream_cntr << std::endl;
 							plane_manager[channelID][chipID][dieID][planeID].Translation_wf[stream_cntr] = plane_manager[channelID][chipID][dieID][planeID].Get_a_free_tlc_block(stream_cntr, true);
 							plane_manager[channelID][chipID][dieID][planeID].Data_slc_wf[stream_cntr] = plane_manager[channelID][chipID][dieID][planeID].Get_a_free_slc_block(stream_cntr, false);
 							plane_manager[channelID][chipID][dieID][planeID].Data_tlc_wf[stream_cntr] = plane_manager[channelID][chipID][dieID][planeID].Get_a_free_tlc_block(stream_cntr, false);
@@ -306,7 +284,6 @@ namespace SSD_Components
 
 	Block_Pool_Slot_Type* PlaneBookKeepingType::Get_a_free_slc_block(stream_id_type stream_id, bool for_mapping_data)
 	{
-		//std::cout << "...Getting a free Slc block...." << Get_free_slc_block_pool_size() << std::endl;
 		Block_Pool_Slot_Type* new_block = NULL;
 		if (Get_free_slc_block_pool_size() == 0)
 		{
@@ -314,41 +291,13 @@ namespace SSD_Components
 			return new_block;
 		}
 		new_block = Free_slc_block_pool.front();//Assign a new write frontier block
-		/*
-		if (Free_slc_block_pool.size() == 0)
-		{
-			PRINT_ERROR("Requesting a free SLC block from an empty pool!")
-			return NULL;
-		}
-		*/
-		//std::cout << "...New block is found " << new_block->BlockID << " " << new_block->Pages_count << ":" << new_block->Current_page_write_index << std::endl;
-		/*
-		std::multimap<unsigned int, Block_Pool_Slot_Type*> new_Free_slc_block_pool;
-		for (auto it = Free_slc_block_pool.begin(); it != Free_slc_block_pool.end(); it++)
-		{
-			if (it == Free_slc_block_pool.begin())
-				continue;
-			else
-			{
-				new_Free_slc_block_pool.insert(*it);
-			}
-		}
-		std::cout << "...block_pool is copied." << std::endl;
-		Free_slc_block_pool.clear();
-		std::cout << "...the old pool is cleared" << std::endl;
-		Free_slc_block_pool = new_Free_slc_block_pool;
-		*/
 		Free_slc_block_pool.pop();
 		if (Free_slc_block_pool.front() == new_block)
 		{
 			std::cout << "......WRONGWRONGWRONG......" << std::endl;
 		}
-		//Free_slc_block_pool.erase(Free_slc_block_pool.begin());
-		//std::cout << "...block is activated and erased from the pool... ";
-		//std::cout << Free_slc_block_pool.size() << std::endl;
 		new_block->Stream_id = stream_id;
 		new_block->Holds_mapping_data = for_mapping_data;
-		//std::cout << "...Pushing the block to usage_history..." << std::endl;
 		Slc_Block_usage_history.push(new_block->BlockID);
 		if (new_block->Flash_type != Flash_Technology_Type::SLC)
 		{
@@ -362,31 +311,22 @@ namespace SSD_Components
 
 	Block_Pool_Slot_Type* PlaneBookKeepingType::Get_a_free_tlc_block(stream_id_type stream_id, bool for_mapping_data)
 	{
-		//std::cout << "...ready to get a free Tlc block...." << Free_tlc_block_pool.size() << std::endl;
 		Block_Pool_Slot_Type* new_block = NULL;
 		if (Free_tlc_block_pool.size() == 0)
 		{
 			PRINT_ERROR("Requesting a free TLC block from an empty pool!")
 			return NULL;
 		}
-		//std::cout << "...get the front block from the pool...." << Free_tlc_block_pool.size() << std::endl;
 		new_block = Free_tlc_block_pool.front();//Assign a new write frontier block
-		//std::cout << "...poping the front block of the pool...." << Free_tlc_block_pool.size() << std::endl;
 		Free_tlc_block_pool.pop();
-		//Free_tlc_block_pool.erase(Free_tlc_block_pool.begin());
-		//std::cout << "...initializing data...." << Free_tlc_block_pool.size() << std::endl;
-		//std::cout << "...checking flash type...." << std::endl;
 		if (new_block->Flash_type != Flash_Technology_Type::TLC)
 		{
 			std::cout << "Get a wrong type of flash block! TLC->SLC" << std::endl;
 			std::cin.get();
 		}
 		new_block->Stream_id = stream_id;
-		//std::cout << "...stream id set...." << std::endl;
 		new_block->Holds_mapping_data = for_mapping_data;
-		//std::cout << "...mapping data flag set...." << std::endl;
 		Tlc_Block_usage_history.push(new_block->BlockID);
-		//std::cout << "...history updated...." << std::endl;
 		return new_block;
 	}
 	
@@ -578,8 +518,6 @@ namespace SSD_Components
 		else if(plane_record->Blocks[page_address.BlockID].Flash_type == Flash_Technology_Type::TLC)
 		{
 			plane_record->On_going_tlc_transaction_num++;
-			//std::cout << "Recieved a TLC write??? " << plane_record->On_going_tlc_transaction_num << std::endl;
-			//std::cin.get();
 		}
 		else
 		{
@@ -629,13 +567,11 @@ namespace SSD_Components
 		plane_record->Blocks[block_address.BlockID].Has_ongoing_gc_wl = false;
 		if (plane_record->Blocks[block_address.BlockID].Flash_type == Flash_Technology_Type::SLC)
 		{
-			//std::cout << "plane " << block_address.ChannelID << ":" << block_address.ChipID << ":" << block_address.DieID << ":" << block_address.PlaneID << " finish collecting a block." << std::endl;
 			plane_record->Completed_data_migration++;
 			if (plane_record->Completed_data_migration == plane_record->Triggered_data_migration)
 			{
 				if (plane_record->Data_migration_should_be_terminated == true || plane_record->Triggered_data_migration == Max_data_migration_trigger_one_time)
 				{
-					//std::cout << block_address.ChannelID << ":" << block_address.ChipID << ":" << block_address.DieID << ":" << block_address.PlaneID << " finish doing data migration" << plane_record->Triggered_data_migration << ":" << plane_record->Completed_data_migration << std::endl;
 					plane_record->Triggered_data_migration = 0;
 					plane_record->Completed_data_migration = 0;
 					plane_record->Doing_data_migration = false;

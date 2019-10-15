@@ -46,35 +46,27 @@ namespace SSD_Components
 
 	void Flash_Block_Manager::Allocate_block_and_page_in_plane_for_user_write(const stream_id_type stream_id, NVM::FlashMemory::Physical_Page_Address& page_address, Flash_Technology_Type flash_type)
 	{
-		//std::cout << ">>>>Flash_Block_Manager::Allocate_block_and_page_in_plane_for_user_write" << std::endl;
 		if(flash_type == Flash_Technology_Type::SLC)
 		{
-			//std::cout << ">>> Allocating a SLC page" << std::endl;
 			if (Allocate_slc_block_and_page_in_plane_for_user_write(stream_id, page_address) == false)
 			{
-				//std::cout << "User request^^^^^" << std::endl;
 				PlaneBookKeepingType *plane_record = &plane_manager[page_address.ChannelID][page_address.ChipID][page_address.DieID][page_address.PlaneID];
 				std::cout << "allocating slc page failed, the free slc pages number is: " << plane_record->Free_slc_pages_count << std::endl;
 				Allocate_tlc_block_and_page_in_plane_for_user_write(stream_id, page_address);
-				//std::cout << ">>> User request allocated with TLC page" << std::endl;
 			}
-			//std::cout << "  >>> Allocated a SLC page " << std::endl;
 		}
 		else if(flash_type ==  Flash_Technology_Type::TLC)
 		{
 			Allocate_tlc_block_and_page_in_plane_for_user_write(stream_id, page_address);
-			//std::cout << ">>> Allocated a TLC page" << std::endl;
 		}
 		else
 		{
 			std::cout << "Allocate_block_and_page_in_plane_for_user_write function WRONG..." << std::endl;
 		}
-		//std::cout << ">>>>Flash_Block_Manager::Allocate_block_and_page_in_plane_for_user_write" << std::endl;
 	}
 
 	bool Flash_Block_Manager::Allocate_slc_block_and_page_in_plane_for_user_write(const stream_id_type stream_id, NVM::FlashMemory::Physical_Page_Address& page_address)
 	{
-		//std::cout << "^^^^^allocating slc block and page^^^^^" << std::endl;
 		PlaneBookKeepingType *plane_record = &plane_manager[page_address.ChannelID][page_address.ChipID][page_address.DieID][page_address.PlaneID];
 		if (plane_record->Data_slc_wf[stream_id] == NULL)
 		{
@@ -85,7 +77,6 @@ namespace SSD_Components
 				return false;
 			}
 		}
-		//std::cout << "^^^^^there is usable SLC block^^^^^" << std::endl;
 		if (plane_record->Data_slc_wf[stream_id]->Current_page_write_index >= page_no_per_slc_block)
 		{
 			PRINT_ERROR("!!!Something wrong has happened! And the page index is collapsed !!!")
@@ -99,17 +90,13 @@ namespace SSD_Components
 		page_address.BlockID = plane_record->Data_slc_wf[stream_id]->BlockID;
 		page_address.PageID = plane_record->Data_slc_wf[stream_id]->Current_page_write_index++;
 		program_transaction_issued(page_address);
-		//std::cout << "^^^^^^^SLC page Allocated, ready to check data migration required..." << std::endl;
 		if(plane_record->Data_slc_wf[stream_id]->Current_page_write_index == page_no_per_slc_block)//The current write frontier block is written to the end
 		{
-			//std::cout << "Need to find a new block for serving SLC writes in .. " << page_address.ChannelID << ":" << page_address.ChipID << ":" << page_address.DieID << ":" << page_address.PlaneID << "   " << plane_record->Get_free_slc_block_pool_size() << std::endl;
 			plane_record->Data_slc_wf[stream_id] = plane_record->Get_a_free_slc_block(stream_id, false);
-			//std::cout << "New block is found..."<< std::endl;
 			gc_and_wl_unit->Check_data_migration_required(plane_record->Get_free_slc_block_pool_size(), page_address);
 		}
 
 		plane_record->Check_bookkeeping_correctness(page_address);
-		//std::cout << "^^^^^allocated slc block and page SUCCESS^^^^^" << std::endl;
 		Stats::UserSLCWriteCount++;
 		Stats::UserSLCWriteCount_per_stream[stream_id]++;
 		return true;
@@ -117,7 +104,6 @@ namespace SSD_Components
 
 	void Flash_Block_Manager::Allocate_tlc_block_and_page_in_plane_for_user_write(const stream_id_type stream_id, NVM::FlashMemory::Physical_Page_Address& page_address)
 	{
-		//std::cout << "^^^^^allocating tlc block and page^^^^^" << std::endl;
 		PlaneBookKeepingType *plane_record = &plane_manager[page_address.ChannelID][page_address.ChipID][page_address.DieID][page_address.PlaneID];
 		plane_record->Valid_pages_count++;
 		plane_record->Free_pages_count--;
@@ -130,22 +116,17 @@ namespace SSD_Components
 		program_transaction_issued(page_address);
 		if(plane_record->Data_tlc_wf[stream_id]->Current_page_write_index == page_no_per_tlc_block)//The current write frontier block is written to the end
 		{
-			//std::cout << "Need to find a new block for serving TLC writes.. " << plane_record->Get_free_tlc_block_pool_size() << std::endl;
 			plane_record->Data_tlc_wf[stream_id] = plane_record->Get_a_free_tlc_block(stream_id, false);
-			//std::cout << "<<<<<<<<<<<<.............SUCCESSED " << plane_record->Get_free_tlc_block_pool_size() << std::endl;
 			gc_and_wl_unit->Check_tlc_gc_required(plane_record->Get_free_tlc_block_pool_size(), page_address);
 		}
 
 		plane_record->Check_bookkeeping_correctness(page_address);
 		Stats::UserTLCWriteCount++;
 		Stats::UserTLCWriteCount_per_stream[stream_id]++;
-		//std::cout << "^^^^^allocated tlc block and page SUCCESS^^^^^" << std::endl;
-		//std::cout << "TLC page Allocated..." << std::endl;
 	}
 
 	void Flash_Block_Manager::Allocate_block_and_page_in_plane_for_gc_write(const stream_id_type stream_id, NVM::FlashMemory::Physical_Page_Address& page_address)
 	{
-		//std::cout << ">>>>Flash_Block_Manager::Allocate_block_and_page_in_plane_for_gc_write" << std::endl;
 		PlaneBookKeepingType *plane_record = &plane_manager[page_address.ChannelID][page_address.ChipID][page_address.DieID][page_address.PlaneID];
 		plane_record->Valid_pages_count++;
 		plane_record->Free_pages_count--;	
@@ -158,12 +139,10 @@ namespace SSD_Components
 		program_transaction_issued(page_address);
 		if (plane_record->GC_wf[stream_id]->Current_page_write_index == page_no_per_tlc_block)//The current write frontier block is written to the end
 		{
-			//std::cout << "<<--->>Need to find a new TLC block for serving GC writes.. " << plane_record->Get_free_tlc_block_pool_size() << std::endl;
 			plane_record->GC_wf[stream_id] = plane_record->Get_a_free_tlc_block(stream_id, false);//Assign a new write frontier block
 		}
 		
 		plane_record->Check_bookkeeping_correctness(page_address);
-		//std::cout << ">>>>Flash_Block_Manager::Allocate_block_and_page_in_plane_for_gc_write" << std::endl;
 	}
 	
 	void Flash_Block_Manager::Allocate_Pages_in_block_and_invalidate_remaining_for_preconditioning(const stream_id_type stream_id, const NVM::FlashMemory::Physical_Page_Address& plane_address, std::vector<NVM::FlashMemory::Physical_Page_Address>& page_addresses)
@@ -272,7 +251,6 @@ namespace SSD_Components
 		plane_record->Invalid_pages_count -= block->Invalid_page_count;
 		if (block->Flash_type == Flash_Technology_Type::SLC)
 		{
-			//std::cout << plane_record->Free_slc_pages_count << " : " << block->Pages_count << " : " << block->Invalid_page_count << std::endl;
 			plane_record->Free_slc_pages_count += block->Pages_count;
 			plane_record->Invalid_slc_pages_count -= block->Invalid_page_count;
 		}
@@ -287,12 +265,10 @@ namespace SSD_Components
 		if (block->Flash_type == Flash_Technology_Type::SLC)
 		{
 			plane_record->Add_to_free_slc_block_pool(block, gc_and_wl_unit->Use_dynamic_wearleveling());
-			//std::cout << "  -- A block is added to the free SLC pool -- " << plane_record->Get_free_slc_block_pool_size() << std::endl;
 		}
 		else if (block->Flash_type == Flash_Technology_Type::TLC)
 		{
 			plane_record->Add_to_free_tlc_block_pool(block, gc_and_wl_unit->Use_dynamic_wearleveling());
-			//std::cout << "  -- A block is added to the free TLC pool -- " << plane_record->Get_free_tlc_block_pool_size() << std::endl;
 		}
 		//plane_record->Add_to_free_block_pool(block, gc_and_wl_unit->Use_dynamic_wearleveling());
 		plane_record->Check_bookkeeping_correctness(block_address);
