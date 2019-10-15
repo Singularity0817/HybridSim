@@ -84,8 +84,6 @@ namespace MQSimEngine
 			{
 				if (_EventList->Count == 0)
 					std::cout << "There is no events in the list, so the simulator will terminate soon" << std::endl;
-				//sleep(2);
-				//continue;
 				break;
 			}
 

@@ -292,19 +292,11 @@ namespace SSD_Components
 		}
 		new_block = Free_slc_block_pool.front();//Assign a new write frontier block
 		Free_slc_block_pool.pop();
-		if (Free_slc_block_pool.front() == new_block)
-		{
-			std::cout << "......WRONGWRONGWRONG......" << std::endl;
-		}
+		assert(Free_slc_block_pool.front() != new_block);
 		new_block->Stream_id = stream_id;
 		new_block->Holds_mapping_data = for_mapping_data;
 		Slc_Block_usage_history.push(new_block->BlockID);
-		if (new_block->Flash_type != Flash_Technology_Type::SLC)
-		{
-			std::cout << "Get a wrong type of flash block! SLC->TLC" << std::endl;
-			std::cin.get();
-		}
-
+		assert(new_block->Flash_type == Flash_Technology_Type::SLC);
 
 		return new_block;
 	}
@@ -319,11 +311,7 @@ namespace SSD_Components
 		}
 		new_block = Free_tlc_block_pool.front();//Assign a new write frontier block
 		Free_tlc_block_pool.pop();
-		if (new_block->Flash_type != Flash_Technology_Type::TLC)
-		{
-			std::cout << "Get a wrong type of flash block! TLC->SLC" << std::endl;
-			std::cin.get();
-		}
+		assert(new_block->Flash_type == Flash_Technology_Type::TLC);
 		new_block->Stream_id = stream_id;
 		new_block->Holds_mapping_data = for_mapping_data;
 		Tlc_Block_usage_history.push(new_block->BlockID);

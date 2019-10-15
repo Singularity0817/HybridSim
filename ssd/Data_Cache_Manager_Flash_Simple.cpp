@@ -71,13 +71,6 @@ namespace SSD_Components
 		{
 			user_request->isHot = false;
 		}
-		/*
-		if (user_request->ID == "4144728")
-		{
-			std::cout << "Processing request in cache manager " << user_request->ID << std::endl;
-			std::cin.get();
-		}
-		*/
 		
 		if (user_request->Type == UserRequestType::READ)
 		{
@@ -264,7 +257,6 @@ namespace SSD_Components
 			if (((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite != NULL)
 			{
 				((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite->RelatedRead = NULL;
-				//std::cout << "LPA: " << transaction->LPA << " is read at " << Simulator->Time() << std::endl;
 				((FTL*)(_my_instance->nvm_firmware))->TSU->Serve_transactions();
 				return;
 			}
@@ -288,7 +280,6 @@ namespace SSD_Components
 			case Caching_Mode::TURNED_OFF:
 				transaction->UserIORequest->Transaction_list.remove(transaction);
 				((Host_Interface_NVMe*)_my_instance->host_interface)->Decrease_on_going_transaction_num(transaction->Stream_id);
-				//std::cout << "LPA: " << transaction->LPA << " is programmed by chip " << Simulator->Time() << " cache manager" << std::endl;
 				if (_my_instance->is_user_request_finished(transaction->UserIORequest))
 					_my_instance->broadcast_user_request_serviced_signal(transaction->UserIORequest);
 				break;

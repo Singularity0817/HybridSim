@@ -143,28 +143,6 @@ namespace SSD_Components
 
 		inform_host_request_completed(stream_id, request);//Completion queue is not full, so the device can DMA the completion queue entry to the host
 		DELETE_REQUEST_NVME(request);
-		/*
-		std::cout << "        --C " << Completed_requests_count << " : " << Completed_read_requests_count << " : " << Completed_write_requests_count <<  " * " << Recieved_requests_count - Completed_requests_count << std::endl;
-		
-		if (Get_the_oldest_request() == NULL)
-		{
-			std::cout << "                --T " << "The waiting list is clearred!" << std::endl;
-		}
-		else
-		{
-			std::cout << "                --T " << Total_requests_on_the_fly() << " The oldest request is " << Get_the_oldest_request()->ID << " with age " << How_old_is_the_oldest_request()<< std::endl;
-		}
-		
-		
-		if (How_old_is_the_oldest_request() > 10000000000)
-		{
-			std::cout << "+++ A request is being blocked...." << std::endl;
-			//std::cin.get();
-			User_Request* request = Get_the_oldest_request();
-			std::cout << "+++ " << request->ID << "  " << request->Size_in_byte << " " << request->SizeInSectors << " " << request->Start_LBA << " " << request->Transaction_list.size();
-			//std::cin.get();
-		}
-		*/
 	}
 
 	unsigned long Input_Stream_Manager_NVMe::Total_requests_on_the_fly()
@@ -242,13 +220,6 @@ namespace SSD_Components
 	
 	void Input_Stream_Manager_NVMe::segment_user_request(User_Request* user_request)
 	{
-		/*
-		if (user_request->ID == "4144728")
-		{
-			std::cout << "Target request is segmenting...." << std::endl;
-			std::cin.get();
-		}
-		*/
 		LHA_type lsa = user_request->Start_LBA;
 		LHA_type lsa2 = user_request->Start_LBA;
 		unsigned int req_size = user_request->SizeInSectors;
@@ -293,13 +264,6 @@ namespace SSD_Components
 			lsa = lsa + transaction_size;
 			hanled_sectors_count += transaction_size;			
 		}
-		/*
-		if (user_request->ID == "620568")
-		{
-			std::cout << "Segmented user request " << user_request->ID << "  " << user_request->Size_in_byte << " " << user_request->Start_LBA  << " " << user_request->Transaction_list.size() << std::endl;
-			std::cin.get();
-		}
-		*/
 	}
 
 	Request_Fetch_Unit_NVMe::Request_Fetch_Unit_NVMe(Host_Interface_Base* host_interface) :

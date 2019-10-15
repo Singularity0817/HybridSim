@@ -996,13 +996,6 @@ namespace SSD_Components
 				}
 			}
 			assert(program_counter != NULL);
-			/*
-			if (program_counter == NULL)
-			{
-				std::cout << "Impossible! What happened??!! " << std::endl;
-				std::cin.get();
-			}
-			*/
 			program_counter->Update();
 			//allocate_page_in_plane_for_user_write(transaction, true);
 			allocate_page_in_plane_for_user_write(transaction, true, Flash_Technology_Type::TLC);

@@ -28,14 +28,6 @@ namespace Host_Components
 	{
 		if (current_trace_line.size() == 0 || STAT_generated_request_count >= total_requests_to_be_generated)
 			return NULL;
-		/*
-		if (STAT_serviced_request_count == 1363238)
-		{
-			std::cout << STAT_serviced_request_count << " have been serviced." << std::endl;
-			std::cout << STAT_generated_request_count << " have been generated." << std::endl;
-			//std::cin.get();
-		}
-		*/
 
 		Host_IO_Reqeust* request = new Host_IO_Reqeust;
 		if (current_trace_line[ASCIITraceTypeColumn].compare(ASCIITraceWriteCode) == 0)
@@ -64,10 +56,6 @@ namespace Host_Components
 		}
 		request->Arrival_time = time_offset + Simulator->Time();
 		STAT_generated_request_count++;
-		/*
-		if (STAT_generated_request_count % 100000 == 0)
-			std::cout << "Total request generated count: " << STAT_generated_request_count << std::endl;
-			*/
 		return request;
 	}
 

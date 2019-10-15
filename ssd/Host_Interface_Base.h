@@ -126,10 +126,6 @@ namespace SSD_Components
 				request_fetch_unit->Process_pcie_write_message(message->Address, message->Payload, message->Payload_size);
 			delete message;
 			request_count_recieved_in_host_interface++;
-			/*
-			if(request_count_recieved_in_host_interface % 100000 == 0)
-				std::cout << "                               " << request_count_recieved_in_host_interface << " : requests are recieved in host interface" << std::endl;
-				*/
 		}
 		void Send_read_message_to_host(uint64_t addresss, unsigned int request_read_data_size);
 		void Send_write_message_to_host(uint64_t addresss, void* message, unsigned int message_size);
@@ -152,13 +148,6 @@ namespace SSD_Components
 
 		void broadcast_user_request_arrival_signal(User_Request* user_request)
 		{
-			/*
-			if(user_request->ID == "620568")
-			{
-				std::cout << "Broadcasting user request " << user_request->ID << "arrival signal" << std::endl;
-				std::cin.get();
-			}
-			*/
 			for (std::vector<UserRequestArrivedSignalHandlerType>::iterator it = connected_user_request_arrived_signal_handlers.begin();
 				it != connected_user_request_arrived_signal_handlers.end(); it++)
 				(*it)(user_request);

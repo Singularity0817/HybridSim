@@ -40,10 +40,6 @@ namespace Host_Components
 		case PCIe_Destination_Type::DEVICE://Message from Host to the SSD device
 			Message_buffer_toward_ssd_device.push(message);
 			num_of_massages_to_be_transfer++;
-			/*
-			if (num_of_massages_to_be_transfer % 100000 == 0)
-				std::cout << num_of_massages_to_be_transfer << " massages are registerred by PCIe Link..." << std::endl;
-				*/
 			if (Message_buffer_toward_ssd_device.size() > 1)
 				return;
 			Simulator->Register_sim_event(Simulator->Time() + estimate_transfer_time(message), this, (void*)(intptr_t)PCIe_Destination_Type::DEVICE, static_cast<int>(PCIe_Link_Event_Type::DELIVER));
@@ -75,10 +71,6 @@ namespace Host_Components
 			message = Message_buffer_toward_ssd_device.front();
 			Message_buffer_toward_ssd_device.pop();
 			num_of_massages_transfer_to_ssd++;
-			/*
-			if (num_of_massages_transfer_to_ssd % 100000 == 0)
-				std::cout << num_of_massages_transfer_to_ssd << " have transferred through PCIe Link..." << std::endl;
-				*/
 			pcie_switch->Deliver_to_device(message);
 			if (Message_buffer_toward_ssd_device.size() > 0)
 				Simulator->Register_sim_event(Simulator->Time() + estimate_transfer_time(Message_buffer_toward_ssd_device.front()),

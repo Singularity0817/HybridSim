@@ -119,28 +119,6 @@ SSD_Device::SSD_Device(Device_Parameter_Set* parameters, std::vector<IO_Flow_Par
 				device->Channels.push_back(channels[channel_cntr]);//Channels should not be added to the simulator core, they are passive object that do not handle any simulation event
 			}
 
-			//*ZWH*
-			/*
-			for (unsigned int channel_c = 0; channel_c < parameters->Flash_Channel_Count; channel_c++)
-			{
-				std::cout << "Channel " << channel_c << std::endl;
-				for (unsigned int chip_c = 0; chip_c < parameters->Chip_No_Per_Channel; chip_c++)
-				{
-					std::cout << "	Chip " << chip_c << std::endl;
-					for (unsigned int die_c = 0; die_c < parameters->Flash_Parameters.Die_No_Per_Chip; die_c++)
-					{
-						std::cout << "		Die " << die_c << std::endl;
-						for (unsigned int plane_c = 0; plane_c < parameters->Flash_Parameters.Plane_No_Per_Die; plane_c++)
-						{
-							std::cout << "			Plane " << plane_c << " : ";
-							std::cout << channels[channel_c]->Chips[chip_c]->Dies[die_c]->Planes[plane_c]->Slc_block_no << " & " << channels[channel_c]->Chips[chip_c]->Dies[die_c]->Planes[plane_c]->Tlc_block_no << std::endl;
-						}
-					}
-				}
-			}
-			*/
-			//*ZWH*
-
 			//Step 3: create channel controller and connect channels to it
 			device->PHY = new SSD_Components::NVM_PHY_ONFI_NVDDR2(device->ID() + ".PHY", channels, parameters->Flash_Channel_Count, parameters->Chip_No_Per_Channel,
 				parameters->Flash_Parameters.Die_No_Per_Chip, parameters->Flash_Parameters.Plane_No_Per_Die);

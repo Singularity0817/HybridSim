@@ -400,13 +400,6 @@ namespace Host_Components
 			sqe->PRP_entry_1 = (DATA_MEMORY_REGION);//Dummy addresses, just to emulate data read/write access
 			sqe->PRP_entry_2 = (DATA_MEMORY_REGION + 0x1000);//Dummy addresses
 		}
-		/*
-		if (num_request_generated_to_sqe == 452787)
-		{
-			std::cout << "break point in NVMe_read_sqe " << sqe << std::endl;
-			std::cin.get();
-		}
-		*/
 		return sqe;
 	}
 	void IO_Flow_Base::Submit_io_request(Host_IO_Reqeust* request)
@@ -418,10 +411,6 @@ namespace Host_Components
 			{
 				waiting_requests.push_back(request);
 				num_of_nvme_request_waiting++;
-				/*
-				if (num_of_nvme_request_waiting % 100000 == 0)
-					std::cout << "                    " << num_of_nvme_request_waiting << " are waiting in the waiting_requests of IO_Flow_Base" << std::endl;
-					*/
 			}
 			else
 			{
@@ -445,10 +434,6 @@ namespace Host_Components
 			break;
 		}
 		STAT_submitted_request_count++;
-		/*
-		if(STAT_submitted_request_count % 100000 == 0)
-			std::cout << "                               " << STAT_submitted_request_count << " : requests are submitted" << std::endl;
-			*/
 	}
 	void IO_Flow_Base::NVMe_update_and_submit_completion_queue_tail()
 	{
