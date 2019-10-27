@@ -1,4 +1,5 @@
 #include "Flash_Block_Manager.h"
+#include <assert.h>
 
 
 namespace SSD_Components

@@ -2,6 +2,7 @@
 #include "../nvm_chip/flash_memory/Physical_Page_Address.h"
 #include "Flash_Block_Manager.h"
 #include "Stats.h"
+#include <assert.h>
 
 namespace SSD_Components
 {
